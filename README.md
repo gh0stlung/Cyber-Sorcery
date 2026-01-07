@@ -10,7 +10,7 @@
 
 <br/>
 
-[ **🚀 LAUNCH SYSTEM** ]((https://gh0stlung.github.io/Cyber-Sorcery/)) 
+[ **🚀 LAUNCH SYSTEM** ](https://gh0stlung.github.io/Cyber-Sorcery/)
 
 </div>
 
