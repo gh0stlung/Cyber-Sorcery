@@ -3,487 +3,777 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AETHER // Neural Interface</title>
+    <title>NEURAL_GRAPH_OP // PRODUCTION</title>
 
-    <!-- Typography: Syncopate for headers, Inter for UI data -->
+    <!-- FONTS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=Syncopate:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;800&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
 
-    <!-- MediaPipe Solutions (Lite models loaded for performance) -->
+    <!-- LIBRARIES -->
+    <!-- MediaPipe Hands -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    
+    <!-- ONNX Runtime Web (YOLOv8) -->
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
 
     <style>
-        /* --- 1. PREMIUM DESIGN SYSTEM --- */
         :root {
-            --bg-deep: #030508;
-            --glass-bg: rgba(10, 15, 20, 0.4); /* Darker glass for better contrast */
-            --glass-border: rgba(255, 255, 255, 0.08);
-            --accent-cyan: #00f3ff;
-            --accent-purple: #bc13fe;
-            --text-main: rgba(255, 255, 255, 0.95);
-            --text-muted: rgba(255, 255, 255, 0.6);
-            
-            /* Cinematic Easing */
-            --ease-cinematic: cubic-bezier(0.22, 1, 0.36, 1);
+            --bg: #050505;
+            --accent-chop: #00ff9d; /* Neural Green */
+            --accent-top: #ffaa00;  /* Data Amber */
+            --accent-dat: #d848ff;  /* Purple */
+            --text-main: #e0e0e0;
+            --panel-bg: rgba(10, 12, 14, 0.85);
         }
 
         body, html {
             margin: 0; padding: 0; width: 100%; height: 100%;
-            background-color: var(--bg-deep);
+            background-color: var(--bg);
             color: var(--text-main);
-            font-family: 'Inter', sans-serif;
+            font-family: 'JetBrains Mono', monospace;
             overflow: hidden;
-            /* Prevent bounce scrolling on mobile */
-            overscroll-behavior: none; 
+            user-select: none;
+            -webkit-font-smoothing: antialiased;
         }
 
-        /* --- 2. AMBIENT ATMOSPHERE --- */
-        .ambient-glow {
-            position: absolute; width: 150%; height: 150%; top: -25%; left: -25%;
-            background: radial-gradient(circle at 50% 50%, rgba(0, 243, 255, 0.03), transparent 60%),
-                        radial-gradient(circle at 80% 20%, rgba(188, 19, 254, 0.03), transparent 50%);
-            animation: deep-breathe 20s infinite alternate ease-in-out;
-            z-index: 0; pointer-events: none;
-            will-change: transform, opacity;
-        }
-
-        @keyframes deep-breathe {
-            0% { transform: scale(1); opacity: 0.6; }
-            100% { transform: scale(1.05); opacity: 0.8; }
-        }
-
-        /* --- 3. RENDERING LAYERS --- */
-        #input_video { display: none; }
-        
-        #output_canvas {
+        /* LOADING OVERLAY */
+        #loader {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 1; transform: scaleX(-1); /* Mirror for natural feel */
-            /* Subtle cinematic grade */
-            filter: contrast(1.05) saturate(0.9) brightness(0.95);
+            background: #000; z-index: 999;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            transition: opacity 0.6s ease-out;
+        }
+        
+        .spinner {
+            width: 40px; height: 40px; 
+            border: 2px solid #222; border-top: 2px solid var(--accent-chop);
+            border-radius: 50%; animation: spin 0.8s linear infinite;
+            margin-bottom: 20px;
+        }
+        
+        #status-text {
+            font-family: 'Rajdhani', sans-serif;
+            font-weight: 700; letter-spacing: 2px;
+            color: var(--accent-chop);
+            font-size: 14px;
+            text-align: center;
         }
 
-        .ui-layer {
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* HUD LAYER */
+        #ui-layer {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             z-index: 10; pointer-events: none;
-            display: flex; flex-direction: column; justify-content: space-between;
-            padding: 2rem; box-sizing: border-box;
         }
 
-        /* --- 4. GLASS UI COMPONENTS --- */
-        .glass-panel {
-            background: var(--glass-bg);
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
-            border: 1px solid var(--glass-border);
-            border-radius: 8px; /* Slightly sharper corners for tech feel */
-            padding: 1.2rem;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-            /* Interaction Transitions */
-            transition: transform 0.4s var(--ease-cinematic), box-shadow 0.4s var(--ease-cinematic), border-color 0.4s;
-            will-change: transform;
+        #debug-panel {
+            position: absolute; bottom: 20px; left: 20px;
+            background: var(--panel-bg);
+            border: 1px solid #333;
+            border-left: 3px solid var(--accent-chop);
+            padding: 15px; font-size: 11px;
+            pointer-events: auto;
+            backdrop-filter: blur(4px);
+            min-width: 220px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
         }
 
-        /* Hover Interaction (Desktop) */
-        .glass-panel:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 30px rgba(0, 243, 255, 0.05);
-            border-color: rgba(0, 243, 255, 0.2);
+        .metric { display: flex; justify-content: space-between; margin-bottom: 6px; border-bottom: 1px solid #222; padding-bottom: 2px; }
+        .val { font-weight: bold; color: #fff; }
+        .val.ok { color: var(--accent-chop); }
+        .val.warn { color: var(--accent-top); }
+
+        /* CANVAS & VIDEO */
+        #input_video { display: none; }
+        #render_canvas {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 1; transform: scaleX(-1); /* Mirror */
         }
 
-        .header-bar {
-            display: flex; justify-content: space-between; align-items: center;
+        /* GRID BACKGROUND */
+        .grid-bg {
+            position: absolute; width: 200%; height: 200%; top: -50%; left: -50%;
+            background-image: 
+                linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+            background-size: 60px 60px;
+            transform: perspective(1000px) rotateX(20deg);
+            z-index: 0; pointer-events: none;
+            opacity: 0.4;
         }
-
-        .brand {
-            font-family: 'Syncopate', sans-serif;
-            font-weight: 700; letter-spacing: 3px;
-            font-size: 1rem;
-            color: var(--text-main);
-            text-shadow: 0 0 20px rgba(255,255,255,0.1);
-        }
-
-        .status-badge {
-            font-family: 'Inter', monospace;
-            font-size: 0.7rem; letter-spacing: 1.5px;
-            color: var(--accent-cyan);
-            border: 1px solid rgba(0, 243, 255, 0.2);
-            padding: 6px 16px; border-radius: 4px;
-            background: rgba(0, 243, 255, 0.05);
-            /* Slow Pulse */
-            animation: slow-pulse 6s infinite ease-in-out;
-        }
-
-        @keyframes slow-pulse {
-            0%, 100% { opacity: 0.7; box-shadow: 0 0 5px rgba(0,243,255,0.05); }
-            50% { opacity: 1; box-shadow: 0 0 15px rgba(0,243,255,0.15); }
-        }
-
-        .bottom-controls {
-            display: flex; gap: 1rem; align-items: flex-end;
-        }
-
-        .info-card {
-            min-width: 180px;
-        }
-
-        .info-label {
-            font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 0.5rem;
-        }
-        
-        .info-value {
-            font-family: 'Inter', sans-serif;
-            font-size: 0.85rem; font-weight: 400; letter-spacing: 0.5px;
-            color: var(--text-main);
-            transition: color 0.5s ease;
-        }
-
-        /* --- 5. ENTRY ANIMATIONS --- */
-        .fade-in-up {
-            opacity: 0;
-            transform: translateY(16px);
-            animation: entry-slide 1.2s var(--ease-cinematic) forwards;
-            will-change: transform, opacity;
-        }
-
-        .delay-1 { animation-delay: 0.2s; }
-        .delay-2 { animation-delay: 0.4s; }
-        .delay-3 { animation-delay: 0.6s; }
-
-        @keyframes entry-slide {
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        /* --- 6. DYNAMIC STATES --- */
-        .state-scanning { color: var(--text-muted); }
-        .state-active { color: var(--accent-cyan); text-shadow: 0 0 10px rgba(0,243,255,0.4); }
-        .state-locked { color: var(--accent-purple); text-shadow: 0 0 10px rgba(188,19,254,0.4); }
-
     </style>
 </head>
 <body>
 
-    <!-- Ambient Background -->
-    <div class="ambient-glow"></div>
+    <div class="grid-bg"></div>
 
-    <!-- Core Video/Canvas (Hidden Video) -->
-    <video id="input_video" playsinline muted autoplay></video>
-    <canvas id="output_canvas"></canvas>
-
-    <!-- UI Overlay -->
-    <div class="ui-layer">
-        
-        <!-- Header -->
-        <div class="header-bar fade-in-up delay-1">
-            <div class="glass-panel">
-                <div class="brand">AETHER OS</div>
-            </div>
-            <div class="status-badge" id="sys-status">NO SIGNAL</div>
-        </div>
-
-        <!-- Footer -->
-        <div class="bottom-controls">
-            <div class="glass-panel info-card fade-in-up delay-2">
-                <div class="info-label">PROTOCOL</div>
-                <div class="info-value state-scanning" id="gesture-text">INITIALIZING...</div>
-            </div>
-
-            <div class="glass-panel fade-in-up delay-3" style="margin-left: auto;">
-                <div class="info-label">FPS</div>
-                <div class="info-value" id="fps-counter">00</div>
-            </div>
-        </div>
-
+    <div id="loader">
+        <div class="spinner"></div>
+        <div id="status-msg"><span id="status-text">INITIALIZING SYSTEMS...</span></div>
+        <div style="font-size:10px; color:#555; margin-top:10px;">YOLOv8 WASM + MEDIAPIPE</div>
     </div>
 
-    <script>
-        /**
-         * AETHER ENGINE - PERFORMANCE OPTIMIZED
-         * Target: 60FPS on mid-range Android
-         * Philosophy: Smoothness over Complexity
-         */
+    <div id="ui-layer">
+        <div id="debug-panel">
+            <div style="margin-bottom:10px; color:var(--accent-chop); font-weight:bold; letter-spacing:1px;">TD_NEURAL_GRAPH</div>
+            <div class="metric"><span>RENDER FPS</span><span class="val" id="fps-render">0</span></div>
+            <div class="metric"><span>VISION FPS</span><span class="val" id="fps-vision">0</span></div>
+            <div class="metric"><span>NODES (CHOP/TOP)</span><span class="val" id="node-count">0 / 0</span></div>
+            <div class="metric"><span>SYSTEM STATUS</span><span class="val" id="sys-status">BOOTING</span></div>
+        </div>
+    </div>
+
+    <video id="input_video" playsinline muted autoplay></video>
+    <canvas id="render_canvas"></canvas>
+
+<script>
+/**
+ * ============================================================================
+ * 1. CONFIGURATION
+ * ============================================================================
+ */
+const CONFIG = {
+    // Model Path - Attempts to load from local repo first
+    modelPath: './models/yolov8n.onnx',
+    
+    // Fallback/Demo labels (COCO 80)
+    labels: ['person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat', 'traffic light', 'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird', 'cat', 'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra', 'giraffe', 'backpack', 'umbrella', 'handbag', 'tie', 'suitcase', 'frisbee', 'skis', 'snowboard', 'sports ball', 'kite', 'baseball bat', 'baseball glove', 'skateboard', 'surfboard', 'tennis racket', 'bottle', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple', 'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake', 'chair', 'couch', 'potted plant', 'bed', 'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote', 'keyboard', 'cell phone', 'microwave', 'oven', 'toaster', 'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors', 'teddy bear', 'hair drier', 'toothbrush'],
+
+    // Performance & Thresholds
+    yoloInterval: 1000, // 1 Hz Inference
+    yoloConf: 0.50,
+    yoloIoU: 0.45,
+    
+    // Gesture Thresholds
+    pinchThreshold: 0.05,
+    pinchReleaseThreshold: 0.08,
+
+    // Visuals
+    colorChop: '#00ff9d',
+    colorTop: '#ffaa00',
+    colorDat: '#d848ff',
+    colorText: '#ffffff'
+};
+
+/**
+ * ============================================================================
+ * 2. UTILITIES
+ * ============================================================================
+ */
+const UTILS = {
+    lerp: (a, b, t) => a + (b - a) * t,
+    
+    lerpAngle: (a, b, t) => {
+        let diff = b - a;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        return a + diff * t;
+    },
+
+    iou: (boxA, boxB) => {
+        const xA = Math.max(boxA[0], boxB[0]);
+        const yA = Math.max(boxA[1], boxB[1]);
+        const xB = Math.min(boxA[0] + boxA[2], boxB[0] + boxB[2]);
+        const yB = Math.min(boxA[1] + boxA[3], boxB[1] + boxB[3]);
+        const interW = Math.max(0, xB - xA);
+        const interH = Math.max(0, yB - yA);
+        const areaI = interW * interH;
+        const areaA = boxA[2] * boxA[3];
+        const areaB = boxB[2] * boxB[3];
+        return areaI / (areaA + areaB - areaI + 0.00001);
+    },
+
+    // Seeded random for stable visual glitches
+    seededRandom: (seed) => {
+        let x = Math.sin(seed) * 10000;
+        return x - Math.floor(x);
+    },
+
+    guid: () => Math.random().toString(36).substr(2, 9)
+};
+
+/**
+ * ============================================================================
+ * 3. VISION ENGINE (YOLOv8 + MEDIA PIPE)
+ * ============================================================================
+ */
+class VisionEngine {
+    constructor() {
+        this.yoloSession = null;
+        this.handsModel = null;
         
-        const VIDEO = document.getElementById('input_video');
-        const CANVAS = document.getElementById('output_canvas');
-        const CTX = CANVAS.getContext('2d', { alpha: false, desynchronized: true });
+        // Buffers
+        this.tensorCanvas = document.createElement('canvas');
+        this.tensorCanvas.width = 640;
+        this.tensorCanvas.height = 640;
+        this.tensorCtx = this.tensorCanvas.getContext('2d', { willReadFrequently: true });
         
-        const UI_GESTURE = document.getElementById('gesture-text');
-        const UI_STATUS = document.getElementById('sys-status');
-        const UI_FPS = document.getElementById('fps-counter');
+        this.isInferencing = false;
+        this.lastInference = 0;
+        this.yoloEnabled = true;
+    }
 
-        // Internal Resolution: 720p is the sweet spot for crisp lines vs performance
-        const INT_W = 1280;
-        const INT_H = 720;
-        CANVAS.width = INT_W;
-        CANVAS.height = INT_H;
-
-        // Constants & Config
-        const CONFIG = {
-            colors: {
-                cyan: '#00f3ff',
-                purple: '#bc13fe',
-                white: '#ffffff',
-                grid: 'rgba(0, 243, 255, 0.05)'
-            },
-            smoothing: 0.12 // Lerp factor for cinematic movement (Lower = smoother/slower)
-        };
-
-        // State Machine
-        const STATE = {
-            frame: 0,
-            fpsLast: 0,
-            smoothHand: null, // Stores smoothed coordinates
-            textUpdateTimer: 0
-        };
-
-        // --- MATH UTILITIES ---
-        const lerp = (a, b, t) => a + (b - a) * t;
-        
-        // Fast distance check (Squared) to avoid expensive Math.sqrt in heavy loops
-        const distSq = (x1, y1, x2, y2) => (x1-x2)**2 + (y1-y2)**2;
-
-        // --- VISUAL UTILITIES ---
-
-        // Efficient Ring Drawing
-        function drawRing(ctx, x, y, r, color, lineWidth, dash) {
-            ctx.beginPath();
-            ctx.strokeStyle = color;
-            ctx.lineWidth = lineWidth;
-            ctx.setLineDash(dash || []);
-            ctx.arc(x, y, r, 0, Math.PI * 2);
-            ctx.stroke();
+    async init() {
+        // 1. YOLO Init
+        try {
+            ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/";
+            this.yoloSession = await ort.InferenceSession.create(CONFIG.modelPath);
+            console.log("YOLO Loaded");
+        } catch(e) {
+            console.warn("YOLO load failed:", e);
+            this.yoloEnabled = false;
+            document.getElementById('sys-status').innerText = "HANDS ONLY";
+            document.getElementById('sys-status').className = "val warn";
         }
 
-        // Draw Data Stream (Line from point A to B with "nodes")
-        function drawDataConnection(ctx, x1, y1, x2, y2, color, active) {
-            ctx.beginPath();
-            ctx.strokeStyle = color;
-            ctx.lineWidth = active ? 1.5 : 0.5;
-            ctx.moveTo(x1, y1);
-            
-            if (active) {
-                // Curved "organic" connection for active state
-                const cx = (x1 + x2) / 2;
-                const cy = (y1 + y2) / 2;
-                ctx.quadraticCurveTo(cx, y1, x2, y2);
-            } else {
-                ctx.lineTo(x2, y2);
-            }
-            ctx.stroke();
+        // 2. Hands Init
+        this.handsModel = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+        this.handsModel.setOptions({
+            maxNumHands: 2,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.65,
+            minTrackingConfidence: 0.65
+        });
+    }
 
-            // Draw Node
-            if (active) {
-                ctx.fillStyle = color;
-                ctx.beginPath();
-                ctx.arc(x2, y2, 2, 0, Math.PI*2);
-                ctx.fill();
+    async runYolo(video) {
+        if (!this.yoloEnabled || !this.yoloSession || this.isInferencing) return null;
+
+        const now = performance.now();
+        if (now - this.lastInference < CONFIG.yoloInterval) return null;
+
+        this.isInferencing = true;
+
+        try {
+            // Letterbox Resize (Top-Left Alignment for Speed)
+            const vw = video.videoWidth;
+            const vh = video.videoHeight;
+            if (vw === 0 || vh === 0) throw new Error("Video not ready");
+
+            const scale = Math.min(640 / vw, 640 / vh);
+            const w = vw * scale;
+            const h = vh * scale;
+            
+            // Clear & Draw
+            this.tensorCtx.fillStyle = '#808080';
+            this.tensorCtx.fillRect(0, 0, 640, 640);
+            this.tensorCtx.drawImage(video, 0, 0, w, h);
+
+            const imgData = this.tensorCtx.getImageData(0, 0, 640, 640);
+            const input = new Float32Array(3 * 640 * 640);
+            
+            // HWC -> CHW & Normalize
+            let p = 0;
+            for(let i=0; i<imgData.data.length; i+=4) {
+                input[p] = imgData.data[i] / 255.0;            // R
+                input[p + 409600] = imgData.data[i+1] / 255.0; // G
+                input[p + 819200] = imgData.data[i+2] / 255.0; // B
+                p++;
+            }
+
+            const tensor = new ort.Tensor("float32", input, [1, 3, 640, 640]);
+            const outputs = await this.yoloSession.run({ images: tensor });
+            // YOLO output name varies, grab first value
+            const output = Object.values(outputs)[0]; 
+
+            const results = this.parseOutput(output.data, output.dims, scale);
+            
+            this.lastInference = performance.now();
+            this.isInferencing = false;
+            return results;
+
+        } catch (e) {
+            console.error("YOLO Error:", e);
+            this.isInferencing = false;
+            return [];
+        }
+    }
+
+    parseOutput(data, dims, scale) {
+        // Detect layout: [1, 84, 8400] vs [1, 8400, 84]
+        // 84 = 4 box coords + 80 classes
+        const isTransposed = dims[2] === 84; 
+        const numAnchors = isTransposed ? dims[1] : dims[2];
+        const numChannels = isTransposed ? dims[2] : dims[1];
+        
+        const boxes = [];
+        
+        for (let i = 0; i < numAnchors; i++) {
+            let maxScore = 0;
+            let classId = -1;
+            
+            // Find Class
+            for (let c = 0; c < 80; c++) {
+                // Access logic based on layout
+                const score = isTransposed 
+                    ? data[i * numChannels + (c + 4)] 
+                    : data[(c + 4) * numAnchors + i];
+                
+                if (score > maxScore) {
+                    maxScore = score;
+                    classId = c;
+                }
+            }
+
+            if (maxScore > CONFIG.yoloConf) {
+                // Extract Box
+                let x, y, w, h;
+                if (isTransposed) {
+                    x = data[i * numChannels + 0];
+                    y = data[i * numChannels + 1];
+                    w = data[i * numChannels + 2];
+                    h = data[i * numChannels + 3];
+                } else {
+                    x = data[0 * numAnchors + i];
+                    y = data[1 * numAnchors + i];
+                    w = data[2 * numAnchors + i];
+                    h = data[3 * numAnchors + i];
+                }
+
+                // Un-letterbox
+                const rX = (x - w/2) / scale;
+                const rY = (y - h/2) / scale;
+                const rW = w / scale;
+                const rH = h / scale;
+
+                boxes.push({
+                    box: [rX, rY, rW, rH],
+                    score: maxScore,
+                    label: CONFIG.labels[classId]
+                });
             }
         }
+        return this.nms(boxes);
+    }
 
-        // --- MAIN RENDERER ---
+    nms(boxes) {
+        boxes.sort((a, b) => b.score - a.score);
+        const result = [];
+        while(boxes.length > 0) {
+            const best = boxes[0];
+            result.push(best);
+            boxes = boxes.filter(b => UTILS.iou(best.box, b.box) < CONFIG.yoloIoU);
+        }
+        return result;
+    }
+}
 
-        function drawCinematicInterface(landmarks) {
-            const ctx = CTX;
-            const time = STATE.frame * 0.02;
+/**
+ * ============================================================================
+ * 4. NODE GRAPH SYSTEM
+ * ============================================================================
+ */
+class NodeGraph {
+    constructor() {
+        this.nodes = [];
+        this.wires = [];
+    }
 
-            // 1. INPUT SMOOTHING (Critical for "Premium" feel)
-            // We lerp the wrist and middle finger to create a stable "rig"
-            const rawWrist = landmarks[0];
-            const rawMid = landmarks[9];
-            
-            const targetX = rawMid.x * INT_W;
-            const targetY = rawMid.y * INT_H;
-            
-            if (!STATE.smoothHand) {
-                STATE.smoothHand = { x: targetX, y: targetY, size: 0 };
-            }
+    update(hands, objects, cw, ch) {
+        // --- HANDS (CHOPs) ---
+        // Mark stale
+        this.nodes.filter(n => n.type === 'CHOP').forEach(n => n.fresh = false);
 
-            // Interpolate position
-            STATE.smoothHand.x = lerp(STATE.smoothHand.x, targetX, CONFIG.smoothing);
-            STATE.smoothHand.y = lerp(STATE.smoothHand.y, targetY, CONFIG.smoothing);
-
-            // Calculate Size (Smoothed)
-            const rawSize = Math.hypot(rawWrist.x - rawMid.x, rawWrist.y - rawMid.y) * INT_W * 5;
-            STATE.smoothHand.size = lerp(STATE.smoothHand.size, rawSize, CONFIG.smoothing);
-
-            const cx = STATE.smoothHand.x;
-            const cy = STATE.smoothHand.y;
-            const size = Math.max(STATE.smoothHand.size, 80); // Clamp min size
-
-            // 2. GESTURE LOGIC
-            // Simple robust check: Distance of tips to wrist
-            const wrist = landmarks[0];
-            const tips = [8, 12, 16, 20]; // Index, Middle, Ring, Pinky
-            let extendedCount = 0;
-            
-            tips.forEach(idx => {
-                // Check if tip is further from wrist than its knuckle (approx)
-                const tip = landmarks[idx];
-                const mcp = landmarks[idx - 2]; // Knuckle
-                const dTip = (tip.x - wrist.x)**2 + (tip.y - wrist.y)**2;
-                const dMcp = (mcp.x - wrist.x)**2 + (mcp.y - wrist.y)**2;
-                if (dTip > dMcp) extendedCount++;
+        if (hands && hands.length > 0) {
+            hands.forEach(hand => {
+                const id = `chop_${hand.handedness}`;
+                const lm = hand.landmarks;
+                
+                // Position (Mirror X)
+                const tx = (1 - lm[9].x) * cw;
+                const ty = lm[9].y * ch;
+                
+                // Rotation
+                const angle = Math.atan2(lm[9].y - lm[0].y, (1-lm[9].x) - (1-lm[0].x));
+                
+                // Pinch Calc
+                const pinchDist = Math.hypot(lm[8].x - lm[4].x, lm[8].y - lm[4].y);
+                
+                let node = this.nodes.find(n => n.id === id);
+                if (!node) {
+                    node = {
+                        id, type: 'CHOP', label: `HAND [${hand.handedness.substr(0,1)}]`,
+                        x: tx, y: ty, rot: angle,
+                        pinchVal: 0, state: 'IDLE',
+                        fresh: true, seed: Math.random() * 100
+                    };
+                    this.nodes.push(node);
+                } else {
+                    node.fresh = true;
+                    // Physics
+                    node.x = UTILS.lerp(node.x, tx, 0.2);
+                    node.y = UTILS.lerp(node.y, ty, 0.2);
+                    node.rot = UTILS.lerpAngle(node.rot, angle, 0.15);
+                    
+                    // State Machine
+                    if (node.state === 'IDLE' && pinchDist < CONFIG.pinchThreshold) {
+                        node.state = 'PINCH_START';
+                        this.triggerConnection(node);
+                    } else if ((node.state === 'PINCH_START' || node.state === 'PINCH_HOLD') && pinchDist < CONFIG.pinchReleaseThreshold) {
+                        node.state = 'PINCH_HOLD';
+                        node.pinchVal = UTILS.lerp(node.pinchVal, 1.0, 0.2);
+                    } else {
+                        node.state = 'IDLE';
+                        node.pinchVal = UTILS.lerp(node.pinchVal, 0.0, 0.2);
+                    }
+                }
             });
+        }
+        
+        // Remove stale hands
+        this.nodes = this.nodes.filter(n => n.type !== 'CHOP' || n.fresh);
 
-            // 3. RENDER MODES
-            ctx.globalCompositeOperation = 'lighter'; // GPU-friendly glow
+        // --- OBJECTS (TOPs) ---
+        if (objects && objects.length > 0) {
+            this.nodes.filter(n => n.type === 'TOP').forEach(n => n.fresh = false);
 
-            if (extendedCount >= 3) {
-                // --- MODE: OPEN (ACCESS GRANTED) ---
-                // Visual: Unfolding Mandala
-                updateUIText("ACCESS GRANTED", "ACTIVE", "state-active");
-
-                // Main Ring (Slow Counter-Rotate)
-                ctx.save();
-                ctx.translate(cx, cy);
-                ctx.rotate(-time * 0.5);
-                drawRing(ctx, 0, 0, size, CONFIG.colors.cyan, 1.5, [size * 0.2, size * 0.1]);
-                ctx.restore();
-
-                // Inner Ring (Fast Rotate)
-                ctx.save();
-                ctx.translate(cx, cy);
-                ctx.rotate(time);
-                drawRing(ctx, 0, 0, size * 0.6, 'rgba(0, 243, 255, 0.5)', 1, []);
+            objects.forEach(obj => {
+                const cx = cw - (obj.box[0] + obj.box[2]/2); // Mirror
+                const cy = obj.box[1] + obj.box[3]/2;
                 
-                // Geometric Triangles (The "Sorcery" part)
-                ctx.beginPath();
-                ctx.strokeStyle = 'rgba(0, 243, 255, 0.3)';
-                for(let i=0; i<3; i++) {
-                    const a = (Math.PI*2/3) * i + time;
-                    const r = size * 0.6;
-                    ctx.lineTo(Math.cos(a)*r, Math.sin(a)*r);
+                // Centroid Matching
+                let match = null;
+                let minD = 150;
+                
+                this.nodes.filter(n => n.type === 'TOP' && n.label === obj.label.toUpperCase()).forEach(n => {
+                    const d = Math.hypot(n.x - cx, n.y - cy);
+                    if (d < minD) { minD = d; match = n; }
+                });
+
+                if (match) {
+                    match.targetX = cx;
+                    match.targetY = cy;
+                    match.conf = obj.score;
+                    match.fresh = true;
+                    match.life = 60; 
+                } else {
+                    this.nodes.push({
+                        id: UTILS.guid(), type: 'TOP', label: obj.label.toUpperCase(),
+                        x: cx, y: cy, targetX: cx, targetY: cy,
+                        conf: obj.score, fresh: true, life: 60, seed: Math.random() * 100
+                    });
                 }
-                ctx.closePath();
-                ctx.stroke();
-                ctx.restore();
-
-                // Connect fingers to center (Data Streams)
-                [4, 8, 12, 16, 20].forEach(i => {
-                    const lx = landmarks[i].x * INT_W;
-                    const ly = landmarks[i].y * INT_H;
-                    drawDataConnection(ctx, cx, cy, lx, ly, CONFIG.colors.cyan, true);
-                });
-
-            } else {
-                // --- MODE: FIST (SYSTEM LOCK) ---
-                // Visual: Data Compression / Gravity
-                updateUIText("SYSTEM LOCKED", "SECURE", "state-locked");
-
-                // Bracket Reticle (Tracking Hand)
-                const s = size * 0.7;
-                ctx.strokeStyle = CONFIG.colors.purple;
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                // Corners
-                ctx.moveTo(cx - s, cy - s + 20); ctx.lineTo(cx - s, cy - s); ctx.lineTo(cx - s + 20, cy - s);
-                ctx.moveTo(cx + s - 20, cy - s); ctx.lineTo(cx + s, cy - s); ctx.lineTo(cx + s, cy - s + 20);
-                ctx.moveTo(cx + s, cy + s - 20); ctx.lineTo(cx + s, cy + s); ctx.lineTo(cx + s - 20, cy + s);
-                ctx.moveTo(cx - s + 20, cy + s); ctx.lineTo(cx - s, cy + s); ctx.lineTo(cx - s, cy + s - 20);
-                ctx.stroke();
-
-                // Center Core
-                ctx.fillStyle = 'rgba(188, 19, 254, 0.2)';
-                ctx.beginPath();
-                ctx.arc(cx, cy, s * 0.4, 0, Math.PI*2);
-                ctx.fill();
-
-                // Connect fingers (Curved inward)
-                [4, 8, 12, 16, 20].forEach(i => {
-                    const lx = landmarks[i].x * INT_W;
-                    const ly = landmarks[i].y * INT_H;
-                    // Draw muted connection lines
-                    drawDataConnection(ctx, cx, cy, lx, ly, 'rgba(188, 19, 254, 0.3)', false);
-                });
-            }
-
-            ctx.globalCompositeOperation = 'source-over';
+            });
         }
 
-        // --- UI THROTTLING ---
-        // Prevents layout thrashing by updating text only when changed
-        let currentStatusText = "";
-        function updateUIText(protocol, status, className) {
-            if (currentStatusText !== protocol) {
-                UI_GESTURE.className = `info-value ${className}`;
-                UI_GESTURE.innerText = protocol;
-                UI_STATUS.innerText = status;
-                
-                // Trigger subtle glow on change
-                UI_STATUS.style.animation = 'none';
-                UI_STATUS.offsetHeight; /* trigger reflow */
-                UI_STATUS.style.animation = 'slow-pulse 6s infinite ease-in-out';
-                
-                currentStatusText = protocol;
+        // Animate & GC Objects
+        this.nodes = this.nodes.filter(n => {
+            if (n.type === 'TOP') {
+                n.x = UTILS.lerp(n.x, n.targetX, 0.1);
+                n.y = UTILS.lerp(n.y, n.targetY, 0.1);
+                if (!n.fresh) n.life--;
+                return n.life > 0;
+            }
+            return true;
+        });
+
+        // GC Wires
+        this.wires = this.wires.filter(w => {
+            const start = this.nodes.find(n => n.id === w.from);
+            const end = this.nodes.find(n => n.id === w.to);
+            return start && end;
+        });
+    }
+
+    triggerConnection(handNode) {
+        // Connect to nearest TOP
+        let target = null;
+        let minD = 300;
+        
+        this.nodes.filter(n => n.type === 'TOP').forEach(n => {
+            const d = Math.hypot(n.x - handNode.x, n.y - handNode.y);
+            if (d < minD) { minD = d; target = n; }
+        });
+
+        if (target) {
+            // Check existence
+            const exists = this.wires.find(w => w.from === handNode.id && w.to === target.id);
+            if (!exists) {
+                this.wires.push({ from: handNode.id, to: target.id, flow: 0 });
             }
         }
+    }
+}
 
-        // --- MAIN LOOP ---
-        function onResults(results) {
-            STATE.frame++;
+/**
+ * ============================================================================
+ * 5. RENDER ENGINE (VISUALS)
+ * ============================================================================
+ */
+class Renderer {
+    constructor(canvas, graph) {
+        this.canvas = canvas;
+        this.ctx = canvas.getContext('2d', { alpha: false });
+        this.graph = graph;
+        this.frame = 0;
+    }
 
-            // 1. Draw Background (Video Pass)
-            CTX.drawImage(results.image, 0, 0, INT_W, INT_H);
+    draw(video) {
+        this.frame++;
+        const ctx = this.ctx;
+        const w = this.canvas.width;
+        const h = this.canvas.height;
+
+        // 1. Draw Video
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.drawImage(video, 0, 0, w, h);
+        
+        // Darken
+        ctx.fillStyle = 'rgba(5, 5, 8, 0.85)';
+        ctx.fillRect(0, 0, w, h);
+
+        // 2. Additive Magic
+        ctx.globalCompositeOperation = 'lighter';
+
+        // 3. Wires
+        this.graph.wires.forEach(wire => {
+            const from = this.graph.nodes.find(n => n.id === wire.from);
+            const to = this.graph.nodes.find(n => n.id === wire.to);
+            if (!from || !to) return;
+
+            wire.flow = (wire.flow + 0.04) % 1;
             
-            // 2. Cinematic Gradient Overlay (Cheap way to make video look premium)
-            // Instead of heavy filters, we draw a semi-transparent colored rect
-            CTX.fillStyle = 'rgba(3, 5, 10, 0.5)'; // Dark Blue tint
-            CTX.fillRect(0, 0, INT_W, INT_H);
+            ctx.beginPath();
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            ctx.moveTo(from.x, from.y);
+            const cx = (from.x + to.x) / 2;
+            const cy = (from.y + to.y) / 2;
+            ctx.bezierCurveTo(cx, from.y, cx, to.y, to.x, to.y);
+            ctx.stroke();
 
-            // 3. Grid Effect (Static, low cost)
-            CTX.strokeStyle = CONFIG.colors.grid;
-            CTX.lineWidth = 1;
-            CTX.beginPath();
-            const gridY = (STATE.frame * 0.5) % 100;
-            CTX.moveTo(0, gridY); CTX.lineTo(INT_W, gridY);
-            CTX.moveTo(0, gridY + 200); CTX.lineTo(INT_W, gridY + 200);
-            CTX.stroke();
+            // Data Pulse
+            const t = wire.flow;
+            const px = (1-t)*(1-t)*from.x + 2*(1-t)*t*cx + t*t*to.x;
+            const py = (1-t)*(1-t)*from.y + 2*(1-t)*t*((from.y+to.y)/2) + t*t*to.y; 
 
-            // 4. Hand Processing
-            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-                drawCinematicInterface(results.multiHandLandmarks[0]);
-            } else {
-                updateUIText("SCANNING...", "STANDBY", "state-scanning");
-                STATE.smoothHand = null; // Reset smoothing
-            }
+            ctx.fillStyle = CONFIG.colorTop;
+            ctx.shadowColor = CONFIG.colorTop;
+            ctx.shadowBlur = 15;
+            ctx.beginPath(); ctx.arc(px, py, 5, 0, Math.PI*2); ctx.fill();
+            ctx.shadowBlur = 0;
+        });
 
-            // 5. FPS Counter (Throttled update)
-            if (STATE.frame % 30 === 0) {
-                const now = performance.now();
-                if (STATE.fpsLast > 0) {
-                    const fps = Math.round(1000 / ((now - STATE.fpsLast) / 30));
-                    UI_FPS.innerText = fps;
-                }
-                STATE.fpsLast = now;
-            }
+        // 4. Nodes
+        this.graph.nodes.forEach(node => {
+            ctx.save();
+            ctx.translate(node.x, node.y);
+            
+            if (node.type === 'CHOP') this.drawHand(ctx, node);
+            else this.drawObject(ctx, node);
+            
+            ctx.restore();
+        });
+    }
+
+    drawHand(ctx, node) {
+        ctx.rotate(node.rot);
+        
+        const size = 60 + (node.pinchVal * 20);
+        const active = node.pinchVal > 0.1;
+
+        // -- MANDALA --
+        // Ring 1 (Static)
+        ctx.beginPath();
+        ctx.strokeStyle = CONFIG.colorChop;
+        ctx.lineWidth = 1;
+        ctx.setLineDash([2, 5]);
+        ctx.arc(0, 0, size, 0, Math.PI*2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Ring 2 (Rotating Arc)
+        ctx.rotate(this.frame * -0.02);
+        ctx.beginPath();
+        ctx.strokeStyle = 'rgba(0, 255, 157, 0.5)';
+        ctx.lineWidth = 2;
+        ctx.arc(0, 0, size * 1.15, 0, Math.PI);
+        ctx.stroke();
+
+        // Ring 3 (Seeded Glyphs - Stable)
+        ctx.rotate(this.frame * 0.03);
+        ctx.fillStyle = CONFIG.colorChop;
+        ctx.font = '10px monospace';
+        const glyphSeed = Math.floor(node.seed);
+        for (let i=0; i<3; i++) {
+            ctx.rotate(Math.PI * 0.66);
+            // Stable pseudorandom character based on seed + i
+            const charCode = 65 + ((glyphSeed + i) % 26); 
+            ctx.fillText(String.fromCharCode(charCode) + '0', size * 1.25, 0);
         }
 
-        // --- INITIALIZATION ---
-        const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
-        
-        // OPTIMIZATION: Model Complexity 0 (Lite) is crucial for Android performance
-        hands.setOptions({
-            maxNumHands: 1, // Single hand focus for cleaner UI
-            modelComplexity: 0,
-            minDetectionConfidence: 0.5,
-            minTrackingConfidence: 0.5
-        });
-        
-        hands.onResults(onResults);
+        // Energy Core
+        if (active) {
+            ctx.beginPath();
+            ctx.fillStyle = CONFIG.colorTop;
+            ctx.globalAlpha = node.pinchVal * 0.8;
+            ctx.arc(0, 0, size * 0.3 * node.pinchVal, 0, Math.PI*2);
+            ctx.fill();
+            ctx.globalAlpha = 1.0;
+        }
 
-        const camera = new Camera(VIDEO, {
+        // Label
+        ctx.setTransform(1, 0, 0, 1, node.x, node.y); 
+        this.drawUIBox(ctx, -40, -size - 35, 80, 25, CONFIG.colorChop, node.label);
+    }
+
+    drawObject(ctx, node) {
+        this.drawUIBox(ctx, -60, -30, 120, 60, CONFIG.colorTop, node.label, `CONF: ${(node.conf*100).toFixed(0)}%`);
+    }
+
+    drawUIBox(ctx, x, y, w, h, color, title, subtitle) {
+        // Background
+        ctx.fillStyle = 'rgba(15, 20, 25, 0.9)';
+        ctx.fillRect(x, y, w, h);
+        
+        // Border
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x, y, w, h);
+
+        // Header Bar
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(x+1, y+1, w-2, 16);
+        
+        // Text
+        ctx.fillStyle = '#fff';
+        ctx.font = '10px "JetBrains Mono"';
+        ctx.fillText(title, x+6, y+12);
+
+        if (subtitle) {
+            ctx.fillStyle = color;
+            ctx.fillText(subtitle, x+6, y+35);
+        }
+
+        // Tech decorations
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(x-2, y+10, 2, 4);
+        ctx.fillRect(x+w, y+10, 2, 4);
+    }
+}
+
+/**
+ * ============================================================================
+ * 6. APP BOOTSTRAP
+ * ============================================================================
+ */
+async function app() {
+    const video = document.getElementById('input_video');
+    const canvas = document.getElementById('render_canvas');
+    
+    // UI Refs
+    const ui = {
+        loader: document.getElementById('loader'),
+        status: document.getElementById('status-text'),
+        sysStatus: document.getElementById('sys-status'),
+        fpsRender: document.getElementById('fps-render'),
+        fpsVision: document.getElementById('fps-yolo'),
+        nodeCount: document.getElementById('node-count')
+    };
+
+    // Responsive Canvas
+    function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // Core Systems
+    const vision = new VisionEngine();
+    const graph = new NodeGraph();
+    const renderer = new Renderer(canvas, graph);
+
+    // Stats Vars
+    let lastRenderTime = 0;
+    let frameCount = 0;
+    let lastFpsTime = 0;
+
+    try {
+        // 1. Init Vision
+        ui.status.innerText = "LOADING MODELS...";
+        await vision.init();
+
+        // 2. Init Camera
+        ui.status.innerText = "ACCESSING CAMERA...";
+        const camera = new Camera(video, {
             onFrame: async () => {
-                await hands.send({image: VIDEO});
+                await vision.handsModel.send({image: video});
             },
-            width: 1280, // Request 720p from camera
-            height: 720
+            width: 1280, height: 720
         });
-        
-        camera.start();
+        await camera.start();
 
-    </script>
+        // 3. Hands Hook
+        vision.handsModel.onResults(results => {
+            const hands = results.multiHandLandmarks ? results.multiHandLandmarks.map((lm, i) => ({
+                landmarks: lm,
+                handedness: results.multiHandedness[i].label
+            })) : [];
+            
+            // Pass hands immediately to graph
+            graph.update(hands, null, canvas.width, canvas.height);
+        });
+
+        // Hide Loader
+        ui.loader.style.opacity = 0;
+        setTimeout(() => ui.loader.style.display = 'none', 600);
+        
+        ui.sysStatus.innerText = "ONLINE";
+        ui.sysStatus.classList.add('ok');
+
+        // --- LOOPS ---
+
+        // A. Render Loop (V-Sync)
+        function renderLoop(time) {
+            renderer.draw(video);
+            
+            // FPS Calc
+            frameCount++;
+            if (time - lastFpsTime >= 1000) {
+                ui.fpsRender.innerText = frameCount + " FPS";
+                
+                const chops = graph.nodes.filter(n => n.type==='CHOP').length;
+                const tops = graph.nodes.filter(n => n.type==='TOP').length;
+                ui.nodeCount.innerText = `${chops} / ${tops}`;
+                
+                frameCount = 0;
+                lastFpsTime = time;
+            }
+            requestAnimationFrame(renderLoop);
+        }
+        requestAnimationFrame(renderLoop);
+
+        // B. Vision Loop (Throttled via VisionEngine internal timer)
+        async function visionLoop() {
+            const start = performance.now();
+            const results = await vision.runYolo(video);
+            
+            if (results) {
+                graph.update(null, results, canvas.width, canvas.height);
+                const dur = (performance.now() - start).toFixed(0);
+                ui.fpsVision.innerText = dur + "ms";
+            }
+            // Keep loop alive
+            requestAnimationFrame(visionLoop);
+        }
+        visionLoop();
+
+    } catch (e) {
+        console.error("Critical Error:", e);
+        ui.status.innerText = "SYSTEM ERROR";
+        ui.status.style.color = "red";
+    }
+}
+
+// Launch
+app();
+</script>
 </body>
 </html>
+
 
