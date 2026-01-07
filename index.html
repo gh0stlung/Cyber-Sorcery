@@ -2,493 +2,355 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MysticHands v2.0 | Neural Interface</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CYBER_PROTOCOL // v4.0</title>
     
-    <!-- MediaPipe Dependencies -->
+    <!-- Using low-latency Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+
+    <!-- MediaPipe Solutions -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 
     <style>
-        /* --- Cyber-Sorcery Aesthetic --- */
         :root {
-            --bg-color: #020202;
-            --hud-color: #00f3ff;
-            --magic-color: #ff9d00;
-            --magic-accent: #ff2a6d;
-            --font-main: 'Courier New', Courier, monospace;
+            --term-green: #0f0;
+            --term-bg: #000500;
+            --alert: #ff0055;
+            --ui-font: 'VT323', monospace;
         }
 
         body, html {
-            margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
-            background-color: var(--bg-color);
-            font-family: var(--font-main);
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            background: var(--term-bg);
+            overflow: hidden;
+            font-family: var(--ui-font);
         }
 
-        /* Hide the raw video element, we draw it on canvas */
         #input_video { display: none; }
 
-        /* Fullscreen Canvas */
+        /* Canvas scales to fit screen, but renders at low res for speed/retro look */
         #output_canvas {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 1;
-            /* Mirror the canvas for natural feel */
-            transform: scaleX(-1);
+            image-rendering: pixelated; /* Sharp pixels for hacker vibe */
+            transform: scaleX(-1); /* Mirror */
         }
 
-        /* HUD Overlay Layer (Unmirrored) */
-        #hud-layer {
+        /* UI OVERLAY (Not Mirrored) */
+        #ui-layer {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 2; pointer-events: none;
+            pointer-events: none;
+            padding: 20px; box-sizing: border-box;
             display: flex; flex-direction: column; justify-content: space-between;
-            padding: 30px; box-sizing: border-box;
-        }
-
-        /* HUD Components */
-        .hud-panel {
-            background: rgba(0, 10, 20, 0.6);
-            border: 1px solid rgba(0, 243, 255, 0.3);
-            backdrop-filter: blur(8px);
-            padding: 15px; border-radius: 4px;
-            color: var(--hud-color);
-            text-shadow: 0 0 5px rgba(0, 243, 255, 0.5);
-            max-width: 300px;
+            z-index: 10;
         }
 
         .hud-header {
-            font-size: 24px; font-weight: bold; letter-spacing: 2px;
-            border-bottom: 2px solid var(--hud-color);
-            margin-bottom: 10px; padding-bottom: 5px;
-            display: flex; justify-content: space-between; align-items: center;
+            display: flex; justify-content: space-between;
+            color: var(--term-green);
+            font-size: 24px;
+            text-shadow: 0 0 5px var(--term-green);
+            text-transform: uppercase;
         }
 
-        .hud-status { font-size: 12px; line-height: 1.6; opacity: 0.9; }
-        .active-gesture { color: var(--magic-color); font-weight: bold; text-shadow: 0 0 8px var(--magic-color); }
-        
-        .loading-bar {
-            width: 100%; height: 4px; background: #111; margin-top: 10px; position: relative;
-        }
-        .loading-progress {
-            width: 0%; height: 100%; background: var(--magic-color);
-            transition: width 0.1s; box-shadow: 0 0 10px var(--magic-color);
-        }
-
-        #instruction-text {
-            text-align: center; width: 100%;
-            font-size: 14px; letter-spacing: 3px;
-            color: rgba(255, 255, 255, 0.7);
-            position: absolute; bottom: 30px; left: 0;
+        .hud-log {
+            font-size: 18px;
+            color: rgba(0, 255, 0, 0.7);
+            background: rgba(0, 10, 0, 0.8);
+            padding: 10px;
+            border-left: 2px solid var(--term-green);
+            width: 300px;
+            max-width: 80%;
+            min-height: 100px;
         }
 
+        .log-entry { margin-bottom: 2px; }
+        .log-entry.warn { color: var(--alert); }
+
+        /* CRT Scanline Effect */
+        body::before {
+            content: "";
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(
+                rgba(18, 16, 16, 0) 50%, 
+                rgba(0, 0, 0, 0.25) 50%
+            );
+            background-size: 100% 4px;
+            z-index: 20;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
 
-    <!-- Source Video (Hidden) -->
-    <video id="input_video"></video>
-    
-    <!-- Main Drawing Surface -->
+    <video id="input_video" playsinline muted autoplay></video>
     <canvas id="output_canvas"></canvas>
-    
-    <!-- UI Overlay -->
-    <div id="hud-layer">
-        <div class="hud-panel">
-            <div class="hud-header">
-                <span>NEURAL.SYS</span>
-                <span style="font-size:12px">v2.0</span>
-            </div>
-            <div class="hud-status" id="debug-log">
-                SYSTEM: ONLINE<br>
-                CAMERA: LINKED<br>
-                HANDS: SEARCHING...
-            </div>
-            <div class="loading-bar"><div class="loading-progress" id="energy-bar"></div></div>
+
+    <div id="ui-layer">
+        <div class="hud-header">
+            <div>NETRUNNER.EXE <span style="font-size:14px; opacity:0.7;">v4.0.1</span></div>
+            <div id="fps-counter">FPS: 60</div>
         </div>
-        <div id="instruction-text">RAISE HANDS TO ACTIVATE MYSTIC ARTS</div>
+        <div class="hud-log" id="console-log">
+            <div class="log-entry">> SYSTEM BOOT...</div>
+            <div class="log-entry">> WAITING FOR HANDSHAKE...</div>
+        </div>
     </div>
 
     <script>
-        /**
-         * MYSTICHANDS V2.0
-         * A Cyber-Sorcery visualizer using MediaPipe Hands
-         */
-
         const VIDEO_ELEMENT = document.getElementById('input_video');
         const CANVAS_ELEMENT = document.getElementById('output_canvas');
-        const CANVAS_CTX = CANVAS_ELEMENT.getContext('2d');
-        const HUD_LOG = document.getElementById('debug-log');
-        const ENERGY_BAR = document.getElementById('energy-bar');
+        const CTX = CANVAS_ELEMENT.getContext('2d', { alpha: false }); // Fast rendering
+        const CONSOLE = document.getElementById('console-log');
+        const FPS_DIV = document.getElementById('fps-counter');
 
-        // --- Configuration ---
+        // --- PERFORMANCE CONFIG ---
+        // We render at low resolution for performance and style
+        const INTERNAL_WIDTH = 640; 
+        const INTERNAL_HEIGHT = 360; 
+        
+        CANVAS_ELEMENT.width = INTERNAL_WIDTH;
+        CANVAS_ELEMENT.height = INTERNAL_HEIGHT;
+
         const CONFIG = {
             colors: {
-                magic: '#ff9d00',    // Dr. Strange Orange
-                charge: '#ff2a6d',   // Scarlet Witch Red
-                victory: '#00f3ff',  // Sci-Fi Blue
-                love: '#ff0055'      // Pink
+                primary: '#00ffcc', // Cyan
+                fist: '#ff0033',    // Red
+                bg: '#000500'
             },
-            mandalaSpeed: 0.02,
-            particleDecay: 0.03
+            maxParticles: 60 // Hard limit to prevent lag
         };
 
-        // --- State Management ---
         const STATE = {
-            frame: 0,
-            hands: [],
             particles: [],
-            energyLevel: 0,
-            activeSpell: null
+            frame: 0,
+            logQueue: [],
+            fpsLastTime: 0
         };
 
-        // --- Resizing ---
-        function resize() {
-            CANVAS_ELEMENT.width = window.innerWidth;
-            CANVAS_ELEMENT.height = window.innerHeight;
-        }
-        window.addEventListener('resize', resize);
-        resize();
-
-        // --- Math Helpers ---
-        const dist = (p1, p2) => Math.hypot(p1.x - p2.x, p1.y - p2.y);
-        const lerp = (a, b, t) => a + (b - a) * t;
-
-        /**
-         * PARTICLE SYSTEM
-         * Handles sparks, hearts, and magic dust
-         */
-        class Particle {
-            constructor(x, y, type) {
-                this.x = x; this.y = y;
-                this.type = type;
-                this.life = 1.0;
-                this.size = Math.random() * 5 + 2;
-                
-                // Random velocity spread
-                const angle = Math.random() * Math.PI * 2;
-                const speed = Math.random() * 3 + 1;
-                this.vx = Math.cos(angle) * speed;
-                this.vy = Math.sin(angle) * speed;
-
-                // Specific behaviors
-                if (type === 'heart') {
-                    this.vy = -Math.random() * 2 - 1; // Float up
-                    this.vx = (Math.random() - 0.5) * 1;
-                    this.color = CONFIG.colors.love;
-                } else if (type === 'spark') {
-                    this.color = CONFIG.colors.victory;
-                    this.vx *= 2; this.vy *= 2; // Fast sparks
-                } else if (type === 'magic') {
-                    this.color = CONFIG.colors.magic;
-                }
-            }
-
-            update() {
-                this.x += this.vx;
-                this.y += this.vy;
-                this.life -= CONFIG.particleDecay;
-                
-                // Gravity for sparks
-                if (this.type === 'spark') this.vy += 0.2;
-            }
-
-            draw(ctx) {
-                ctx.save();
-                ctx.globalAlpha = this.life;
-                ctx.fillStyle = this.color;
-                
-                if (this.type === 'heart') {
-                    // Simple heart shape
-                    ctx.translate(this.x, this.y);
-                    ctx.beginPath();
-                    const s = this.size;
-                    ctx.moveTo(0,0);
-                    ctx.bezierCurveTo(-s/2, -s/2, -s, s/3, 0, s);
-                    ctx.bezierCurveTo(s, s/3, s/2, -s/2, 0, 0);
-                    ctx.fill();
-                } else {
-                    ctx.beginPath();
-                    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-                    ctx.fill();
-                }
-                ctx.restore();
-            }
-        }
-
-        /**
-         * MANDALA GENERATOR
-         * Draws the Dr. Strange style magic circles
-         */
-        class MagicCircle {
-            constructor() {
-                this.runes = "1234567890 ᚛᚜ ᚠᚢᚦᚨᚱᚲ ᚺᚾᛁᛃᛈᛇᛉᛊ ᛏᛒᛖᛗᛚᛜᛞᛟ"; // Runes and Numbers
-            }
-
-            drawRing(ctx, x, y, radius, rotation, content, color, width = 1) {
-                ctx.save();
-                ctx.translate(x, y);
-                ctx.rotate(rotation);
-                ctx.strokeStyle = color;
-                ctx.lineWidth = width;
-                ctx.shadowColor = color;
-                ctx.shadowBlur = 10;
-                
-                if (content === 'circle') {
-                    ctx.beginPath();
-                    ctx.arc(0, 0, radius, 0, Math.PI * 2);
-                    ctx.stroke();
-                } else if (content === 'square') {
-                    ctx.beginPath();
-                    const s = radius;
-                    ctx.rect(-s/2, -s/2, s, s);
-                    ctx.stroke();
-                } else if (content === 'text') {
-                    ctx.fillStyle = color;
-                    ctx.font = `${radius/6}px monospace`;
-                    ctx.textAlign = 'center';
-                    const chars = this.runes.split('');
-                    const step = (Math.PI * 2) / 12; // 12 characters per ring
-                    for (let i = 0; i < 12; i++) {
-                        ctx.save();
-                        ctx.rotate(i * step);
-                        ctx.translate(0, -radius);
-                        ctx.fillText(chars[i % chars.length], 0, 0);
-                        ctx.restore();
-                    }
-                }
-                ctx.restore();
-            }
-
-            render(ctx, x, y, size, color, active) {
-                const time = STATE.frame * CONFIG.mandalaSpeed;
-                const pulse = active ? 1 + Math.sin(time * 5) * 0.05 : 1;
-                const effSize = size * pulse;
-
-                // Core Glow
-                ctx.save();
-                ctx.globalCompositeOperation = 'screen';
-                
-                // Ring 1: Inner Text
-                this.drawRing(ctx, x, y, effSize * 0.3, time, 'text', color);
-                
-                // Ring 2: Rotating Square
-                this.drawRing(ctx, x, y, effSize * 0.5, -time * 1.5, 'square', color, 2);
-                this.drawRing(ctx, x, y, effSize * 0.5, -time * 1.5 + Math.PI/4, 'square', color, 1); // Offset square
-
-                // Ring 3: Middle Circle
-                this.drawRing(ctx, x, y, effSize * 0.6, 0, 'circle', color, 2);
-
-                // Ring 4: Outer Text
-                this.drawRing(ctx, x, y, effSize * 0.75, time * 0.5, 'text', color);
-
-                // Ring 5: Outer Decorative
-                this.drawRing(ctx, x, y, effSize * 0.9, -time, 'circle', color, 1);
-                
-                // Rays
-                ctx.translate(x, y);
-                ctx.rotate(time * 0.2);
-                ctx.strokeStyle = color;
-                ctx.globalAlpha = 0.5;
-                for(let i=0; i<8; i++) {
-                    ctx.rotate(Math.PI/4);
-                    ctx.beginPath();
-                    ctx.moveTo(effSize * 0.6, 0);
-                    ctx.lineTo(effSize * 1.1, 0);
-                    ctx.stroke();
-                }
-
-                ctx.restore();
-            }
-        }
-
-        const MANDALA = new MagicCircle();
-
-        // --- Hand Analysis ---
-        function analyzeHand(landmarks) {
-            // Finger tip and dip indices
-            const tips = [8, 12, 16, 20];
-            const dips = [6, 10, 14, 18];
-            const wrist = landmarks[0];
-            const thumbTip = landmarks[4];
-            const thumbIp = landmarks[3];
-            const pinkyMcp = landmarks[17];
-
-            // 1. Is Finger Open? (Tip further from wrist than DIP)
-            let fingersOpen = tips.map((tip, i) => {
-                return dist(landmarks[tip], wrist) > dist(landmarks[dips[i]], wrist);
-            });
-
-            // Thumb logic (check horizontal distance relative to pinky base)
-            // Simplified: check if thumb tip is far from index base
-            fingersOpen.unshift(dist(thumbTip, pinkyMcp) > dist(thumbIp, pinkyMcp));
-
-            const openCount = fingersOpen.filter(t => t).length;
-
-            // Gesture Classification
-            let gesture = 'UNKNOWN';
-            if (openCount === 5) gesture = 'OPEN';
-            else if (openCount === 0) gesture = 'FIST';
-            else if (fingersOpen[1] && fingersOpen[2] && !fingersOpen[3] && !fingersOpen[4]) gesture = 'PEACE';
-            else if (fingersOpen[1] && fingersOpen[4] && !fingersOpen[2] && !fingersOpen[3]) gesture = 'ROCK';
+        // --- LOGGING ---
+        function log(msg, type='') {
+            if (STATE.logQueue.length > 0 && STATE.logQueue[STATE.logQueue.length-1].text === msg) return; // Debounce
+            STATE.logQueue.push({text: msg, type: type});
+            if (STATE.logQueue.length > 5) STATE.logQueue.shift();
             
-            return { gesture, landmarks, fingersOpen };
+            CONSOLE.innerHTML = STATE.logQueue.map(l => 
+                `<div class="log-entry ${l.type}">> ${l.text}</div>`
+            ).join('');
         }
 
-        // --- Main Processing Loop ---
+        // --- GEOMETRY HELPERS ---
+        function drawHex(ctx, x, y, r) {
+            ctx.beginPath();
+            for (let i = 0; i < 6; i++) {
+                const angle = (Math.PI / 3) * i;
+                ctx.lineTo(x + Math.cos(angle) * r, y + Math.sin(angle) * r);
+            }
+            ctx.closePath();
+            ctx.stroke();
+        }
+
+        // --- VISUAL EFFECTS ---
+
+        function drawHackerGrid() {
+            CTX.strokeStyle = 'rgba(0, 50, 0, 0.3)';
+            CTX.lineWidth = 1;
+            const step = 40;
+            // Moving grid
+            const offset = (STATE.frame * 0.5) % step;
+            
+            CTX.beginPath();
+            for(let x = 0; x < INTERNAL_WIDTH; x += step) {
+                CTX.moveTo(x, 0); CTX.lineTo(x, INTERNAL_HEIGHT);
+            }
+            for(let y = offset; y < INTERNAL_HEIGHT; y += step) {
+                CTX.moveTo(0, y); CTX.lineTo(INTERNAL_WIDTH, y);
+            }
+            CTX.stroke();
+        }
+
+        function drawCyberMandala(x, y, radius) {
+            const t = STATE.frame * 0.05;
+            
+            // Additive blending makes things glow without shadowBlur
+            CTX.globalCompositeOperation = 'lighter'; 
+            CTX.lineWidth = 2;
+
+            // Ring 1: Rotating Triangle
+            CTX.strokeStyle = CONFIG.colors.primary;
+            CTX.save();
+            CTX.translate(x, y);
+            CTX.rotate(t);
+            CTX.beginPath();
+            for (let i=0; i<3; i++) {
+                const a = (Math.PI*2/3)*i;
+                CTX.lineTo(Math.cos(a)*radius, Math.sin(a)*radius);
+            }
+            CTX.closePath();
+            CTX.stroke();
+            CTX.restore();
+
+            // Ring 2: Counter-rotating Dashed Circle
+            CTX.strokeStyle = '#fff';
+            CTX.save();
+            CTX.translate(x, y);
+            CTX.rotate(-t * 1.5);
+            CTX.setLineDash([10, 15]);
+            CTX.beginPath();
+            CTX.arc(0, 0, radius * 0.8, 0, Math.PI*2);
+            CTX.stroke();
+            CTX.setLineDash([]);
+            CTX.restore();
+
+            // Ring 3: Static Hexagon
+            CTX.strokeStyle = 'rgba(0,255,200,0.5)';
+            drawHex(CTX, x, y, radius * 1.2);
+
+            CTX.globalCompositeOperation = 'source-over';
+        }
+
+        function drawImplosion(x, y, radius) {
+            CTX.globalCompositeOperation = 'lighter';
+            CTX.strokeStyle = CONFIG.colors.fist;
+            CTX.lineWidth = 2;
+
+            // Draw lines sucking in
+            const count = 8;
+            for(let i=0; i<count; i++) {
+                const angle = (Math.PI*2/count) * i + (STATE.frame * 0.1);
+                const rOut = radius * 2.5;
+                const rIn = radius * 0.5;
+                
+                CTX.beginPath();
+                CTX.moveTo(x + Math.cos(angle)*rOut, y + Math.sin(angle)*rOut);
+                CTX.lineTo(x + Math.cos(angle + 0.5)*rIn, y + Math.sin(angle + 0.5)*rIn);
+                CTX.stroke();
+            }
+            
+            // Core
+            CTX.fillStyle = '#fff';
+            CTX.beginPath(); CTX.arc(x, y, radius*0.2, 0, Math.PI*2); CTX.fill();
+            
+            CTX.globalCompositeOperation = 'source-over';
+        }
+
+        function drawTargetRect(x, y, size, color) {
+            CTX.strokeStyle = color;
+            CTX.lineWidth = 2;
+            const s = size * 0.6;
+            const g = s * 0.3; // gap
+            
+            // Corners
+            CTX.beginPath();
+            CTX.moveTo(x-s, y-s+g); CTX.lineTo(x-s, y-s); CTX.lineTo(x-s+g, y-s);
+            CTX.moveTo(x+s-g, y-s); CTX.lineTo(x+s, y-s); CTX.lineTo(x+s, y-s+g);
+            CTX.moveTo(x+s, y+s-g); CTX.lineTo(x+s, y+s); CTX.lineTo(x+s-g, y+s);
+            CTX.moveTo(x-s+g, y+s); CTX.lineTo(x-s, y+s); CTX.lineTo(x-s, y+s-g);
+            CTX.stroke();
+            
+            // Label
+            CTX.fillStyle = color;
+            CTX.font = '10px monospace';
+            CTX.fillText(`TGT_LOCK: ${Math.floor(x)},${Math.floor(y)}`, x-s, y-s-5);
+        }
+
+        // --- MAIN RENDER LOOP ---
         function onResults(results) {
             STATE.frame++;
+
+            // Calculate FPS
+            if (STATE.frame % 10 === 0) {
+                const now = performance.now();
+                const fps = Math.round(1000 / ((now - STATE.fpsLastTime) / 10));
+                FPS_DIV.innerText = `FPS: ${fps}`;
+                STATE.fpsLastTime = now;
+            }
+
+            // 1. Draw Background (Video + Tint)
+            CTX.drawImage(results.image, 0, 0, INTERNAL_WIDTH, INTERNAL_HEIGHT);
+            CTX.fillStyle = 'rgba(0, 10, 0, 0.6)'; // Heavy matrix tint
+            CTX.fillRect(0, 0, INTERNAL_WIDTH, INTERNAL_HEIGHT);
             
-            // 1. Clear Canvas & Draw Video
-            CANVAS_CTX.save();
-            CANVAS_CTX.clearRect(0, 0, CANVAS_ELEMENT.width, CANVAS_ELEMENT.height);
-            
-            // Draw video (Mirrored is handled by CSS, but drawing logic needs to align)
-            // We draw normally, CSS flips visual.
-            // BUT MediaPipe coordinates are normalized 0-1.
-            CANVAS_CTX.drawImage(results.image, 0, 0, CANVAS_ELEMENT.width, CANVAS_ELEMENT.height);
-            
-            // Darken video for "Cinematic" look
-            CANVAS_CTX.fillStyle = 'rgba(0, 5, 10, 0.4)';
-            CANVAS_CTX.fillRect(0, 0, CANVAS_ELEMENT.width, CANVAS_ELEMENT.height);
+            drawHackerGrid();
 
             // 2. Process Hands
-            STATE.hands = [];
-            let statusText = "SYSTEM: SCANNING...";
-            let activeColor = CONFIG.colors.magic;
-
-            if (results.multiHandLandmarks) {
-                statusText = "";
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                 
-                // Detect interaction between two hands for "Heart"
-                let heartMode = false;
-                if (results.multiHandLandmarks.length === 2) {
-                    const h1 = results.multiHandLandmarks[0];
-                    const h2 = results.multiHandLandmarks[1];
-                    // Check distance between index tips and thumb tips
-                    const indexDist = dist({x:h1[8].x, y:h1[8].y}, {x:h2[8].x, y:h2[8].y});
-                    const thumbDist = dist({x:h1[4].x, y:h1[4].y}, {x:h2[4].x, y:h2[4].y});
-                    
-                    if (indexDist < 0.1 && thumbDist < 0.1) {
-                        heartMode = true;
-                        // Spawn heart particles at center
-                        const cx = (h1[8].x + h2[8].x) / 2 * CANVAS_ELEMENT.width;
-                        const cy = (h1[8].y + h2[8].y) / 2 * CANVAS_ELEMENT.height;
-                        if (STATE.frame % 5 === 0) STATE.particles.push(new Particle(cx, cy, 'heart'));
-                    }
-                }
-
                 results.multiHandLandmarks.forEach((landmarks, index) => {
-                    const analysis = analyzeHand(landmarks);
                     const handedness = results.multiHandedness[index].label;
-                    
-                    // Coordinates conversion
                     const wrist = landmarks[0];
-                    const middle = landmarks[9]; // Middle finger MCP (center of palm roughly)
-                    const cx = middle.x * CANVAS_ELEMENT.width;
-                    const cy = middle.y * CANVAS_ELEMENT.height;
-                    
-                    // Calculate hand size roughly for scaling
-                    const handSize = dist({x:wrist.x, y:wrist.y}, {x:middle.x, y:middle.y}) * CANVAS_ELEMENT.width * 5;
+                    const mid = landmarks[9];
+                    const tips = [8, 12, 16, 20];
+                    const mcp = [5, 9, 13, 17];
 
-                    statusText += `[${handedness}]: ${analysis.gesture}\n`;
+                    // Project coordinates to internal resolution
+                    const cx = mid.x * INTERNAL_WIDTH;
+                    const cy = mid.y * INTERNAL_HEIGHT;
+                    
+                    // Hand Scale
+                    const dist = Math.hypot(wrist.x - mid.x, wrist.y - mid.y);
+                    const size = Math.min(dist * INTERNAL_WIDTH * 4, 100); // CLAMP SIZE so it's not huge
 
-                    // --- Render Logic Based on Gesture ---
-                    
-                    // 1. OPEN HAND -> Mandala
-                    if (analysis.gesture === 'OPEN') {
-                        // Draw Mandala centered on palm
-                        MANDALA.render(CANVAS_CTX, cx, cy, handSize, CONFIG.colors.magic, false);
-                        
-                        // Add some sparks at fingertips
-                        [4,8,12,16,20].forEach(tip => {
-                            const tx = landmarks[tip].x * CANVAS_ELEMENT.width;
-                            const ty = landmarks[tip].y * CANVAS_ELEMENT.height;
-                            if (Math.random() > 0.8) STATE.particles.push(new Particle(tx, ty, 'magic'));
-                        });
-                    }
-                    
-                    // 2. FIST -> Charge Energy
-                    if (analysis.gesture === 'FIST') {
-                        // Tighter, red mandala
-                        MANDALA.render(CANVAS_CTX, cx, cy, handSize * 0.6, CONFIG.colors.charge, true);
-                        STATE.energyLevel = Math.min(STATE.energyLevel + 1, 100);
-                        
-                        // Shake effect
-                        const shake = 5;
-                        const sx = cx + (Math.random() - 0.5) * shake;
-                        const sy = cy + (Math.random() - 0.5) * shake;
-                        
-                        // Lightning arcs (Simple lines)
-                        CANVAS_CTX.strokeStyle = CONFIG.colors.charge;
-                        CANVAS_CTX.lineWidth = 2;
-                        CANVAS_CTX.beginPath();
-                        CANVAS_CTX.moveTo(sx, sy);
-                        CANVAS_CTX.lineTo(sx + (Math.random()-0.5)*50, sy + (Math.random()-0.5)*50);
-                        CANVAS_CTX.stroke();
+                    // Detect Open vs Fist
+                    let extendedFingers = 0;
+                    tips.forEach((t, i) => {
+                        const tipY = landmarks[t].y;
+                        const mcpY = landmarks[mcp[i]].y;
+                        // Simple check: is tip above knuckle? (y is inverted in typical CV, but mp uses 0-1)
+                        // Distance check is more reliable
+                        const dTip = Math.hypot(landmarks[t].x - wrist.x, landmarks[t].y - wrist.y);
+                        const dMcp = Math.hypot(landmarks[mcp[i]].x - wrist.x, landmarks[mcp[i]].y - wrist.y);
+                        if (dTip > dMcp * 1.2) extendedFingers++;
+                    });
+
+                    if (extendedFingers >= 4) {
+                        // STATE: OPEN
+                        log(`HAND [${index}]: PROTOCOL_OPEN`, '');
+                        drawCyberMandala(cx, cy, size);
+                        drawTargetRect(cx, cy, size, CONFIG.colors.primary);
+                    } else if (extendedFingers <= 1) {
+                        // STATE: FIST
+                        log(`HAND [${index}]: CORE_DUMP`, 'warn');
+                        drawImplosion(cx, cy, size);
+                        drawTargetRect(cx, cy, size, CONFIG.colors.fist);
                     } else {
-                        STATE.energyLevel = Math.max(STATE.energyLevel - 2, 0);
+                        // STATE: IDLE
+                        drawTargetRect(cx, cy, size, 'rgba(255,255,255,0.5)');
                     }
-
-                    // 3. PEACE -> Victory Sparks
-                    if (analysis.gesture === 'PEACE') {
-                        const tipIndex = landmarks[8];
-                        const tipMiddle = landmarks[12];
-                        const tx = tipIndex.x * CANVAS_ELEMENT.width;
-                        const ty = tipIndex.y * CANVAS_ELEMENT.height;
-                        if (STATE.frame % 3 === 0) {
-                            STATE.particles.push(new Particle(tx, ty, 'spark'));
-                            STATE.particles.push(new Particle(tipMiddle.x * CANVAS_ELEMENT.width, tipMiddle.y * CANVAS_ELEMENT.height, 'spark'));
-                        }
-                    }
-
-                    // 4. Tech Skeleton Overlay (Aura)
-                    drawConnectors(CANVAS_CTX, landmarks, HAND_CONNECTIONS, {color: 'rgba(0, 243, 255, 0.2)', lineWidth: 1});
                 });
+            } else {
+                if (STATE.frame % 60 === 0) log("SCANNING SECTOR...", "");
             }
-
-            // 3. Update & Draw Particles
-            for (let i = STATE.particles.length - 1; i >= 0; i--) {
-                const p = STATE.particles[i];
-                p.update();
-                p.draw(CANVAS_CTX);
-                if (p.life <= 0) STATE.particles.splice(i, 1);
-            }
-
-            // 4. Update HUD
-            HUD_LOG.innerHTML = "SYSTEM: ACTIVE<br>" + statusText.replace(/\n/g, '<br>');
-            ENERGY_BAR.style.width = STATE.energyLevel + "%";
-            
-            CANVAS_CTX.restore();
         }
 
-        // --- MediaPipe Setup ---
+        // --- SETUP ---
         const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+        
+        // CRITICAL PERFORMANCE SETTINGS
         hands.setOptions({
             maxNumHands: 2,
-            modelComplexity: 1,
-            minDetectionConfidence: 0.7,
-            minTrackingConfidence: 0.7
+            modelComplexity: 0, // 0 = LITE (Fastest), 1 = FULL
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
         });
         hands.onResults(onResults);
 
+        // Custom Camera Loop for max control
         const camera = new Camera(VIDEO_ELEMENT, {
             onFrame: async () => {
                 await hands.send({image: VIDEO_ELEMENT});
             },
-            width: 1280,
-            height: 720
+            width: 640,  // Force low res input
+            height: 480
         });
         
-        // Start System
-        camera.start()
-            .then(() => console.log("Camera started"))
-            .catch(err => {
-                console.error(err);
-                HUD_LOG.innerText = "ERROR: CAMERA BLOCKED";
-            });
+        camera.start();
+
+        log("SYSTEM INITIALIZED", "");
 
     </script>
 </body>
 </html>
-
