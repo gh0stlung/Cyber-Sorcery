@@ -10,7 +10,7 @@
 
 <br/>
 
-[ **🚀 LAUNCH SYSTEM** ](./index.html)
+[ **🚀 LAUNCH SYSTEM** ]((https://gh0stlung.github.io/Cyber-Sorcery/)) 
 
 </div>
 
@@ -39,11 +39,32 @@ Built entirely on web standards, this system executes AI models (**YOLOv8** & **
 * **WASM Inference:** Runs quantized YOLOv8 models via ONNX Runtime Web.
 * **Context Awareness:** Identifies common object classes (e.g., cell phones, bottles) to influence visual generation.
 * **Spatial Anchors:** Object bounding boxes act as repulsors or attractors for particle systems.
+* **Automatic Fallback:** If the YOLO model fails to load or runs too slowly, the system automatically degrades to a "Hands-Only" mode to maintain framerate.
 
 ### 🎨 Generative Renderer
 * **Reactive Visuals:** HTML5 Canvas rendering driven by the internal state machine.
 * **Particle Systems:** Physics-based emitters influenced by hand velocity and object position.
 * **Procedural Geometry:** Dynamic shapes generated based on landmark topology.
+
+---
+
+## INCLUDED MODEL
+
+This repository includes a quantized version of the YOLOv8 Nano model, optimized for browser execution.
+
+* **Path:** `models/yolov8n.onnx`
+* **Format:** ONNX (Open Neural Network Exchange)
+* **Optimization:** Quantized for reduced file size and faster CPU/WASM inference.
+
+---
+
+## RUN THE DEMO
+
+1.  **Launch:** Open the live link (or open `index.html` on a local server).
+2.  **Access:** When prompted, allow camera access.
+3.  **Interact:**
+    * Raise one or two hands to trigger particle arrays.
+    * Hold objects (like a cell phone or bottle) to see object detection bounding boxes affecting the visuals.
 
 ---
 
@@ -105,6 +126,6 @@ Requirements:
 USE CASES
  * Creative Coding: Prototyping gestural interfaces for installation art.
  * Experimental UI: Researching spatial interaction patterns.
- * Portfolio Demo: showcasing heavy AI model optimization in web environments.
+ * Portfolio Demo: Showcasing heavy AI model optimization in web environments.
 <!-- end list -->
 
