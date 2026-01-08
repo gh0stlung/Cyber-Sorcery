@@ -2,778 +2,540 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>NEURAL_GRAPH_OP // PRODUCTION</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#000000">
+    <title>NEURAL_INTERFACE // ANDROID_CORE</title>
 
     <!-- FONTS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;800&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
 
-    <!-- LIBRARIES -->
-    <!-- MediaPipe Hands -->
+    <!-- LIBS -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
-    
-    <!-- ONNX Runtime Web (YOLOv8) -->
-    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
 
     <style>
         :root {
-            --bg: #050505;
-            --accent-chop: #00ff9d; /* Neural Green */
-            --accent-top: #ffaa00;  /* Data Amber */
-            --accent-dat: #d848ff;  /* Purple */
-            --text-main: #e0e0e0;
-            --panel-bg: rgba(10, 12, 14, 0.85);
+            --bg-color: #000000;
+            --accent-cyan: #00f3ff;
+            --accent-amber: #ffaa00;
+            --accent-danger: #ff2a2a;
         }
 
         body, html {
             margin: 0; padding: 0; width: 100%; height: 100%;
-            background-color: var(--bg);
-            color: var(--text-main);
-            font-family: 'JetBrains Mono', monospace;
+            background-color: var(--bg-color);
             overflow: hidden;
-            user-select: none;
-            -webkit-font-smoothing: antialiased;
-        }
-
-        /* LOADING OVERLAY */
-        #loader {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: #000; z-index: 999;
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
-            transition: opacity 0.6s ease-out;
-        }
-        
-        .spinner {
-            width: 40px; height: 40px; 
-            border: 2px solid #222; border-top: 2px solid var(--accent-chop);
-            border-radius: 50%; animation: spin 0.8s linear infinite;
-            margin-bottom: 20px;
-        }
-        
-        #status-text {
             font-family: 'Rajdhani', sans-serif;
-            font-weight: 700; letter-spacing: 2px;
-            color: var(--accent-chop);
-            font-size: 14px;
-            text-align: center;
+            touch-action: none;
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
         }
 
-        @keyframes spin { to { transform: rotate(360deg); } }
+        /* HARDWARE ACCELERATED LAYER */
+        #output_canvas {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 1; 
+            transform: scaleX(-1) translateZ(0); /* Mirror + GPU Hint */
+            will-change: transform;
+        }
 
-        /* HUD LAYER */
+        #input_video { 
+            position: absolute; top: 0; left: 0; 
+            width: 1px; height: 1px; opacity: 0; pointer-events: none;
+        }
+
+        /* UI LAYER */
         #ui-layer {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             z-index: 10; pointer-events: none;
+            display: flex; flex-direction: column; justify-content: space-between;
+            padding: 20px; box-sizing: border-box;
         }
 
-        #debug-panel {
-            position: absolute; bottom: 20px; left: 20px;
-            background: var(--panel-bg);
-            border: 1px solid #333;
-            border-left: 3px solid var(--accent-chop);
-            padding: 15px; font-size: 11px;
-            pointer-events: auto;
-            backdrop-filter: blur(4px);
-            min-width: 220px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-        }
-
-        .metric { display: flex; justify-content: space-between; margin-bottom: 6px; border-bottom: 1px solid #222; padding-bottom: 2px; }
-        .val { font-weight: bold; color: #fff; }
-        .val.ok { color: var(--accent-chop); }
-        .val.warn { color: var(--accent-top); }
-
-        /* CANVAS & VIDEO */
-        #input_video { display: none; }
-        #render_canvas {
+        #loading-screen {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 1; transform: scaleX(-1); /* Mirror */
+            background: #000; z-index: 100;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            transition: opacity 0.5s ease;
         }
 
-        /* GRID BACKGROUND */
-        .grid-bg {
-            position: absolute; width: 200%; height: 200%; top: -50%; left: -50%;
-            background-image: 
-                linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
-            background-size: 60px 60px;
-            transform: perspective(1000px) rotateX(20deg);
-            z-index: 0; pointer-events: none;
-            opacity: 0.4;
+        .spinner {
+            width: 40px; height: 40px; 
+            border: 2px solid #333; border-top: 2px solid var(--accent-cyan);
+            border-radius: 50%; animation: spin 1s linear infinite;
+            margin-bottom: 20px;
         }
+
+        #status-text {
+            color: var(--accent-cyan); font-size: 14px; letter-spacing: 2px;
+            text-align: center; font-family: 'JetBrains Mono', monospace;
+        }
+
+        #debug-info {
+            font-family: 'JetBrains Mono', monospace; font-size: 10px;
+            color: rgba(255,255,255,0.6);
+            text-shadow: 0 1px 2px #000;
+        }
+
+        .pill {
+            background: rgba(0, 20, 20, 0.85);
+            border: 1px solid var(--accent-cyan);
+            color: var(--accent-cyan);
+            padding: 4px 10px; border-radius: 4px;
+            display: inline-block; margin-bottom: 4px;
+        }
+
+        #retry-btn {
+            margin-top: 20px; padding: 10px 20px;
+            background: var(--accent-danger); color: #fff;
+            border: none; border-radius: 4px; font-weight: bold;
+            display: none; pointer-events: auto; cursor: pointer;
+        }
+
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
 
-    <div class="grid-bg"></div>
-
-    <div id="loader">
-        <div class="spinner"></div>
-        <div id="status-msg"><span id="status-text">INITIALIZING SYSTEMS...</span></div>
-        <div style="font-size:10px; color:#555; margin-top:10px;">YOLOv8 WASM + MEDIAPIPE</div>
-    </div>
+    <video id="input_video" playsinline muted autoplay></video>
+    <canvas id="output_canvas"></canvas>
 
     <div id="ui-layer">
-        <div id="debug-panel">
-            <div style="margin-bottom:10px; color:var(--accent-chop); font-weight:bold; letter-spacing:1px;">TD_NEURAL_GRAPH</div>
-            <div class="metric"><span>RENDER FPS</span><span class="val" id="fps-render">0</span></div>
-            <div class="metric"><span>VISION FPS</span><span class="val" id="fps-vision">0</span></div>
-            <div class="metric"><span>NODES (CHOP/TOP)</span><span class="val" id="node-count">0 / 0</span></div>
-            <div class="metric"><span>SYSTEM STATUS</span><span class="val" id="sys-status">BOOTING</span></div>
+        <div id="debug-info">
+            <div id="sys-status" class="pill">BOOTING...</div>
+            <div id="fps-counter">FPS: 0</div>
         </div>
     </div>
 
-    <video id="input_video" playsinline muted autoplay></video>
-    <canvas id="render_canvas"></canvas>
+    <div id="loading-screen">
+        <div class="spinner"></div>
+        <div id="status-text">INITIALIZING CORE...</div>
+        <button id="retry-btn" onclick="location.reload()">RELOAD SYSTEM</button>
+    </div>
 
-<script>
-/**
- * ============================================================================
- * 1. CONFIGURATION
- * ============================================================================
- */
-const CONFIG = {
-    // Model Path - Attempts to load from local repo first
-    modelPath: './models/yolov8n.onnx',
-    
-    // Fallback/Demo labels (COCO 80)
-    labels: ['person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat', 'traffic light', 'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird', 'cat', 'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra', 'giraffe', 'backpack', 'umbrella', 'handbag', 'tie', 'suitcase', 'frisbee', 'skis', 'snowboard', 'sports ball', 'kite', 'baseball bat', 'baseball glove', 'skateboard', 'surfboard', 'tennis racket', 'bottle', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple', 'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake', 'chair', 'couch', 'potted plant', 'bed', 'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote', 'keyboard', 'cell phone', 'microwave', 'oven', 'toaster', 'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors', 'teddy bear', 'hair drier', 'toothbrush'],
-
-    // Performance & Thresholds
-    yoloInterval: 1000, // 1 Hz Inference
-    yoloConf: 0.50,
-    yoloIoU: 0.45,
-    
-    // Gesture Thresholds
-    pinchThreshold: 0.05,
-    pinchReleaseThreshold: 0.08,
-
-    // Visuals
-    colorChop: '#00ff9d',
-    colorTop: '#ffaa00',
-    colorDat: '#d848ff',
-    colorText: '#ffffff'
-};
-
-/**
- * ============================================================================
- * 2. UTILITIES
- * ============================================================================
- */
-const UTILS = {
-    lerp: (a, b, t) => a + (b - a) * t,
-    
-    lerpAngle: (a, b, t) => {
-        let diff = b - a;
-        while (diff < -Math.PI) diff += Math.PI * 2;
-        while (diff > Math.PI) diff -= Math.PI * 2;
-        return a + diff * t;
-    },
-
-    iou: (boxA, boxB) => {
-        const xA = Math.max(boxA[0], boxB[0]);
-        const yA = Math.max(boxA[1], boxB[1]);
-        const xB = Math.min(boxA[0] + boxA[2], boxB[0] + boxB[2]);
-        const yB = Math.min(boxA[1] + boxA[3], boxB[1] + boxB[3]);
-        const interW = Math.max(0, xB - xA);
-        const interH = Math.max(0, yB - yA);
-        const areaI = interW * interH;
-        const areaA = boxA[2] * boxA[3];
-        const areaB = boxB[2] * boxB[3];
-        return areaI / (areaA + areaB - areaI + 0.00001);
-    },
-
-    // Seeded random for stable visual glitches
-    seededRandom: (seed) => {
-        let x = Math.sin(seed) * 10000;
-        return x - Math.floor(x);
-    },
-
-    guid: () => Math.random().toString(36).substr(2, 9)
-};
-
-/**
- * ============================================================================
- * 3. VISION ENGINE (YOLOv8 + MEDIA PIPE)
- * ============================================================================
- */
-class VisionEngine {
-    constructor() {
-        this.yoloSession = null;
-        this.handsModel = null;
-        
-        // Buffers
-        this.tensorCanvas = document.createElement('canvas');
-        this.tensorCanvas.width = 640;
-        this.tensorCanvas.height = 640;
-        this.tensorCtx = this.tensorCanvas.getContext('2d', { willReadFrequently: true });
-        
-        this.isInferencing = false;
-        this.lastInference = 0;
-        this.yoloEnabled = true;
-    }
-
-    async init() {
-        // 1. YOLO Init
-        try {
-            ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/";
-            this.yoloSession = await ort.InferenceSession.create(CONFIG.modelPath);
-            console.log("YOLO Loaded");
-        } catch(e) {
-            console.warn("YOLO load failed:", e);
-            this.yoloEnabled = false;
-            document.getElementById('sys-status').innerText = "HANDS ONLY";
-            document.getElementById('sys-status').className = "val warn";
-        }
-
-        // 2. Hands Init
-        this.handsModel = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
-        this.handsModel.setOptions({
-            maxNumHands: 2,
-            modelComplexity: 1,
-            minDetectionConfidence: 0.65,
-            minTrackingConfidence: 0.65
-        });
-    }
-
-    async runYolo(video) {
-        if (!this.yoloEnabled || !this.yoloSession || this.isInferencing) return null;
-
-        const now = performance.now();
-        if (now - this.lastInference < CONFIG.yoloInterval) return null;
-
-        this.isInferencing = true;
-
-        try {
-            // Letterbox Resize (Top-Left Alignment for Speed)
-            const vw = video.videoWidth;
-            const vh = video.videoHeight;
-            if (vw === 0 || vh === 0) throw new Error("Video not ready");
-
-            const scale = Math.min(640 / vw, 640 / vh);
-            const w = vw * scale;
-            const h = vh * scale;
-            
-            // Clear & Draw
-            this.tensorCtx.fillStyle = '#808080';
-            this.tensorCtx.fillRect(0, 0, 640, 640);
-            this.tensorCtx.drawImage(video, 0, 0, w, h);
-
-            const imgData = this.tensorCtx.getImageData(0, 0, 640, 640);
-            const input = new Float32Array(3 * 640 * 640);
-            
-            // HWC -> CHW & Normalize
-            let p = 0;
-            for(let i=0; i<imgData.data.length; i+=4) {
-                input[p] = imgData.data[i] / 255.0;            // R
-                input[p + 409600] = imgData.data[i+1] / 255.0; // G
-                input[p + 819200] = imgData.data[i+2] / 255.0; // B
-                p++;
+    <script>
+        /**
+         * ------------------------------------------------------------------------
+         * 1. SYSTEM CORE & STATE MANAGEMENT
+         * ------------------------------------------------------------------------
+         */
+        const CONFIG = {
+            colors: {
+                primary: '#00f3ff', secondary: '#00ff9d',
+                lock: '#ffaa00', danger: '#ff2a2a'
+            },
+            physics: {
+                lerp: 0.25, // Adjusted for mobile responsiveness
+                decay: 0.15
+            },
+            limits: {
+                maxFPS: 30, // Limit AI inference FPS
+                handTimeout: 500 // ms before hand is considered lost
             }
+        };
 
-            const tensor = new ort.Tensor("float32", input, [1, 3, 640, 640]);
-            const outputs = await this.yoloSession.run({ images: tensor });
-            // YOLO output name varies, grab first value
-            const output = Object.values(outputs)[0]; 
+        // Monolithic State Object (GC Friendly)
+        const STATE = {
+            width: 0, height: 0, dpr: 1,
+            isReady: false, isVisible: true,
+            lastFrameTime: 0, lastPipeTime: 0,
+            pipeBusy: false,
+            ctx: null,
+            hands: [],
+            watchdogTimer: null
+        };
 
-            const results = this.parseOutput(output.data, output.dims, scale);
-            
-            this.lastInference = performance.now();
-            this.isInferencing = false;
-            return results;
+        const DOM = {
+            video: document.getElementById('input_video'),
+            canvas: document.getElementById('output_canvas'),
+            loader: document.getElementById('loading-screen'),
+            statusText: document.getElementById('status-text'),
+            sysStatus: document.getElementById('sys-status'),
+            fps: document.getElementById('fps-counter'),
+            retryBtn: document.getElementById('retry-btn')
+        };
 
-        } catch (e) {
-            console.error("YOLO Error:", e);
-            this.isInferencing = false;
-            return [];
+        // Error Recovery
+        function fatalError(msg) {
+            console.error(msg);
+            DOM.statusText.innerText = msg;
+            DOM.statusText.style.color = CONFIG.colors.danger;
+            document.querySelector('.spinner').style.display = 'none';
+            DOM.retryBtn.style.display = 'block';
         }
-    }
 
-    parseOutput(data, dims, scale) {
-        // Detect layout: [1, 84, 8400] vs [1, 8400, 84]
-        // 84 = 4 box coords + 80 classes
-        const isTransposed = dims[2] === 84; 
-        const numAnchors = isTransposed ? dims[1] : dims[2];
-        const numChannels = isTransposed ? dims[2] : dims[1];
-        
-        const boxes = [];
-        
-        for (let i = 0; i < numAnchors; i++) {
-            let maxScore = 0;
-            let classId = -1;
-            
-            // Find Class
-            for (let c = 0; c < 80; c++) {
-                // Access logic based on layout
-                const score = isTransposed 
-                    ? data[i * numChannels + (c + 4)] 
-                    : data[(c + 4) * numAnchors + i];
-                
-                if (score > maxScore) {
-                    maxScore = score;
-                    classId = c;
+        // Watchdog: Detects if MediaPipe stalls
+        function petWatchdog() {
+            if (STATE.watchdogTimer) clearTimeout(STATE.watchdogTimer);
+            STATE.watchdogTimer = setTimeout(() => {
+                if(STATE.isReady && STATE.isVisible) {
+                    console.warn("Watchdog barked: Pipeline stalled");
+                    STATE.pipeBusy = false; // Force unlock
                 }
+            }, 3000);
+        }
+
+        /**
+         * ------------------------------------------------------------------------
+         * 2. PHYSICS & MATH ENGINE
+         * ------------------------------------------------------------------------
+         */
+        const MATH = {
+            lerp: (s, e, t) => {
+                const v = (1 - t) * s + t * e;
+                return Math.abs(e - v) < 0.01 ? e : v;
+            },
+            clamp: (v, min, max) => Math.min(Math.max(v, min), max),
+            map: (v, s1, st1, s2, st2) => s2 + (st2 - s2) * ((v - s1) / (st1 - s1))
+        };
+
+        class HandEntity {
+            constructor() {
+                this.active = false;
+                this.opacity = 0;
+                this.x = 0; this.y = 0;
+                this.size = 0; this.rot = 0;
+                this.pinch = 0;
+                this.fingers = Array(5).fill().map(() => ({x:0, y:0}));
+                this.lastUpdate = 0;
+                this.mode = 'IDLE';
             }
 
-            if (maxScore > CONFIG.yoloConf) {
-                // Extract Box
-                let x, y, w, h;
-                if (isTransposed) {
-                    x = data[i * numChannels + 0];
-                    y = data[i * numChannels + 1];
-                    w = data[i * numChannels + 2];
-                    h = data[i * numChannels + 3];
-                } else {
-                    x = data[0 * numAnchors + i];
-                    y = data[1 * numAnchors + i];
-                    w = data[2 * numAnchors + i];
-                    h = data[3 * numAnchors + i];
-                }
+            update(lm, now) {
+                this.active = true;
+                this.lastUpdate = now;
+                this.opacity = 1;
 
-                // Un-letterbox
-                const rX = (x - w/2) / scale;
-                const rY = (y - h/2) / scale;
-                const rW = w / scale;
-                const rH = h / scale;
+                // Canvas Dimensions (CSS Pixels)
+                const w = STATE.width / STATE.dpr;
+                const h = STATE.height / STATE.dpr;
 
-                boxes.push({
-                    box: [rX, rY, rW, rH],
-                    score: maxScore,
-                    label: CONFIG.labels[classId]
-                });
-            }
-        }
-        return this.nms(boxes);
-    }
-
-    nms(boxes) {
-        boxes.sort((a, b) => b.score - a.score);
-        const result = [];
-        while(boxes.length > 0) {
-            const best = boxes[0];
-            result.push(best);
-            boxes = boxes.filter(b => UTILS.iou(best.box, b.box) < CONFIG.yoloIoU);
-        }
-        return result;
-    }
-}
-
-/**
- * ============================================================================
- * 4. NODE GRAPH SYSTEM
- * ============================================================================
- */
-class NodeGraph {
-    constructor() {
-        this.nodes = [];
-        this.wires = [];
-    }
-
-    update(hands, objects, cw, ch) {
-        // --- HANDS (CHOPs) ---
-        // Mark stale
-        this.nodes.filter(n => n.type === 'CHOP').forEach(n => n.fresh = false);
-
-        if (hands && hands.length > 0) {
-            hands.forEach(hand => {
-                const id = `chop_${hand.handedness}`;
-                const lm = hand.landmarks;
+                // 1. Raw Targets
+                const wrist = lm[0];
+                const mid = lm[9];
                 
-                // Position (Mirror X)
-                const tx = (1 - lm[9].x) * cw;
-                const ty = lm[9].y * ch;
+                const tx = (wrist.x + mid.x) * 0.5 * w;
+                const ty = (wrist.y + mid.y) * 0.5 * h;
                 
-                // Rotation
-                const angle = Math.atan2(lm[9].y - lm[0].y, (1-lm[9].x) - (1-lm[0].x));
-                
-                // Pinch Calc
+                const dx = mid.x - wrist.x;
+                const dy = mid.y - wrist.y;
+                const trot = Math.atan2(dy, dx);
+                const tsize = Math.sqrt(dx*dx + dy*dy) * w * 2.2;
+
                 const pinchDist = Math.hypot(lm[8].x - lm[4].x, lm[8].y - lm[4].y);
+                const tpinch = MATH.map(pinchDist, 0.02, 0.15, 1, 0);
+
+                // 2. Physics Interpolation
+                const f = CONFIG.physics.lerp;
                 
-                let node = this.nodes.find(n => n.id === id);
-                if (!node) {
-                    node = {
-                        id, type: 'CHOP', label: `HAND [${hand.handedness.substr(0,1)}]`,
-                        x: tx, y: ty, rot: angle,
-                        pinchVal: 0, state: 'IDLE',
-                        fresh: true, seed: Math.random() * 100
-                    };
-                    this.nodes.push(node);
+                // Snap if far away (Prevent trails on entry)
+                if (Math.hypot(tx - this.x, ty - this.y) > 300) {
+                    this.x = tx; this.y = ty; this.rot = trot; this.size = tsize;
                 } else {
-                    node.fresh = true;
-                    // Physics
-                    node.x = UTILS.lerp(node.x, tx, 0.2);
-                    node.y = UTILS.lerp(node.y, ty, 0.2);
-                    node.rot = UTILS.lerpAngle(node.rot, angle, 0.15);
+                    this.x = MATH.lerp(this.x, tx, f);
+                    this.y = MATH.lerp(this.y, ty, f);
                     
-                    // State Machine
-                    if (node.state === 'IDLE' && pinchDist < CONFIG.pinchThreshold) {
-                        node.state = 'PINCH_START';
-                        this.triggerConnection(node);
-                    } else if ((node.state === 'PINCH_START' || node.state === 'PINCH_HOLD') && pinchDist < CONFIG.pinchReleaseThreshold) {
-                        node.state = 'PINCH_HOLD';
-                        node.pinchVal = UTILS.lerp(node.pinchVal, 1.0, 0.2);
-                    } else {
-                        node.state = 'IDLE';
-                        node.pinchVal = UTILS.lerp(node.pinchVal, 0.0, 0.2);
+                    let dRot = trot - this.rot;
+                    while (dRot < -Math.PI) dRot += Math.PI*2;
+                    while (dRot > Math.PI) dRot -= Math.PI*2;
+                    this.rot += dRot * f;
+
+                    this.size = MATH.lerp(this.size, tsize, f);
+                    this.pinch = MATH.lerp(this.pinch, MATH.clamp(tpinch, 0, 1), 0.2);
+                }
+
+                // Fingers
+                [4,8,12,16,20].forEach((idx, i) => {
+                    const fx = lm[idx].x * w;
+                    const fy = lm[idx].y * h;
+                    this.fingers[i].x = MATH.lerp(this.fingers[i].x, fx, f);
+                    this.fingers[i].y = MATH.lerp(this.fingers[i].y, fy, f);
+                });
+
+                this.mode = this.pinch > 0.8 ? 'LINK' : 'IDLE';
+            }
+
+            decay(now) {
+                // Time-based decay to prevent sticking
+                if (now - this.lastUpdate > CONFIG.limits.handTimeout) {
+                    this.opacity -= CONFIG.physics.decay;
+                    if (this.opacity <= 0) {
+                        this.active = false;
+                        this.opacity = 0;
                     }
                 }
-            });
+            }
         }
-        
-        // Remove stale hands
-        this.nodes = this.nodes.filter(n => n.type !== 'CHOP' || n.fresh);
 
-        // --- OBJECTS (TOPs) ---
-        if (objects && objects.length > 0) {
-            this.nodes.filter(n => n.type === 'TOP').forEach(n => n.fresh = false);
+        STATE.hands = [new HandEntity(), new HandEntity()];
 
-            objects.forEach(obj => {
-                const cx = cw - (obj.box[0] + obj.box[2]/2); // Mirror
-                const cy = obj.box[1] + obj.box[3]/2;
+        /**
+         * ------------------------------------------------------------------------
+         * 3. RENDER ENGINE (Canvas 2D Optimized)
+         * ------------------------------------------------------------------------
+         */
+        function setupCanvas() {
+            const dpr = Math.min(window.devicePixelRatio || 1, 2); // Cap DPI for perf
+            STATE.dpr = dpr;
+            
+            // Internal Resolution
+            const w = window.innerWidth;
+            const h = window.innerHeight;
+            
+            // Prevent accumulation of transforms
+            if (STATE.ctx) STATE.ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+            DOM.canvas.width = w * dpr;
+            DOM.canvas.height = h * dpr;
+            
+            STATE.width = DOM.canvas.width;
+            STATE.height = DOM.canvas.height;
+
+            STATE.ctx = DOM.canvas.getContext('2d', {
+                alpha: false,
+                desynchronized: true // Android optimization
+            });
+
+            // Apply global scale ONCE
+            STATE.ctx.scale(dpr, dpr);
+        }
+
+        function drawRing(ctx, x, y, r, color, width, dash) {
+            ctx.beginPath();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = width;
+            if (dash) ctx.setLineDash(dash); else ctx.setLineDash([]);
+            ctx.ellipse(x, y, r, r * 0.85, 0, 0, Math.PI*2);
+            ctx.stroke();
+        }
+
+        function render() {
+            if (!STATE.isVisible) return;
+
+            const ctx = STATE.ctx;
+            const w = STATE.width / STATE.dpr;
+            const h = STATE.height / STATE.dpr;
+            const now = performance.now();
+            const time = now * 0.001;
+
+            // 1. Clear with Source Over (Reset state)
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.fillStyle = '#020202';
+            ctx.fillRect(0, 0, w, h);
+
+            // 2. Draw Video Background (Dimmed)
+            if (DOM.video.readyState >= 2) {
+                ctx.globalAlpha = 0.4;
+                const vw = DOM.video.videoWidth;
+                const vh = DOM.video.videoHeight;
+                // Object-fit: cover logic
+                const scale = Math.max(w / vw, h / vh);
+                const dw = vw * scale;
+                const dh = vh * scale;
+                const dx = (w - dw) / 2;
+                const dy = (h - dh) / 2;
+                ctx.drawImage(DOM.video, dx, dy, dw, dh);
+                ctx.globalAlpha = 1.0;
+            }
+
+            // 3. Draw Visuals
+            ctx.globalCompositeOperation = 'lighter';
+
+            STATE.hands.forEach(hand => {
+                hand.decay(now);
+                if (hand.opacity <= 0.01) return;
+
+                ctx.globalAlpha = hand.opacity;
+                const color = hand.mode === 'LINK' ? CONFIG.colors.lock : CONFIG.colors.primary;
+
+                // -- MATRIX RING --
+                ctx.save();
+                ctx.translate(hand.x, hand.y);
+                ctx.rotate(hand.rot - Math.PI/2);
+
+                // Static Base
+                drawRing(ctx, 0, 0, hand.size, color, 2, []);
                 
-                // Centroid Matching
-                let match = null;
-                let minD = 150;
+                // Gyro Spinner
+                ctx.rotate(time);
+                drawRing(ctx, 0, 0, hand.size * 1.3, `rgba(255,255,255,0.2)`, 1, [5, 10]);
                 
-                this.nodes.filter(n => n.type === 'TOP' && n.label === obj.label.toUpperCase()).forEach(n => {
-                    const d = Math.hypot(n.x - cx, n.y - cy);
-                    if (d < minD) { minD = d; match = n; }
+                // Tech Segments
+                ctx.rotate(-time * 2);
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 3;
+                ctx.setLineDash([]);
+                ctx.beginPath();
+                for(let i=0; i<3; i++) {
+                    ctx.rotate((Math.PI*2)/3);
+                    ctx.moveTo(hand.size*0.9, 0);
+                    ctx.arc(0, 0, hand.size*0.9, 0, 0.6);
+                }
+                ctx.stroke();
+                ctx.restore();
+
+                // -- FINGERS --
+                hand.fingers.forEach((f, i) => {
+                    ctx.strokeStyle = 'rgba(0, 243, 255, 0.2)';
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(hand.x, hand.y);
+                    ctx.lineTo(f.x, f.y);
+                    ctx.stroke();
+
+                    ctx.fillStyle = i === 1 ? CONFIG.colors.secondary : color;
+                    ctx.beginPath();
+                    ctx.arc(f.x, f.y, 4, 0, Math.PI*2);
+                    ctx.fill();
                 });
 
-                if (match) {
-                    match.targetX = cx;
-                    match.targetY = cy;
-                    match.conf = obj.score;
-                    match.fresh = true;
-                    match.life = 60; 
-                } else {
-                    this.nodes.push({
-                        id: UTILS.guid(), type: 'TOP', label: obj.label.toUpperCase(),
-                        x: cx, y: cy, targetX: cx, targetY: cy,
-                        conf: obj.score, fresh: true, life: 60, seed: Math.random() * 100
-                    });
+                // -- PINCH BEAM --
+                if (hand.pinch > 0.5) {
+                    const t = hand.fingers[0];
+                    const i = hand.fingers[1];
+                    ctx.strokeStyle = '#fff';
+                    ctx.lineWidth = 2 + (hand.pinch * 4);
+                    ctx.beginPath();
+                    ctx.moveTo(t.x, t.y);
+                    ctx.lineTo(i.x, i.y);
+                    ctx.stroke();
+                    
+                    const cx = (t.x + i.x)/2;
+                    const cy = (t.y + i.y)/2;
+                    ctx.fillStyle = CONFIG.colors.lock;
+                    ctx.shadowColor = CONFIG.colors.lock;
+                    ctx.shadowBlur = 10;
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, 6 + Math.random()*4, 0, Math.PI*2);
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
                 }
             });
-        }
 
-        // Animate & GC Objects
-        this.nodes = this.nodes.filter(n => {
-            if (n.type === 'TOP') {
-                n.x = UTILS.lerp(n.x, n.targetX, 0.1);
-                n.y = UTILS.lerp(n.y, n.targetY, 0.1);
-                if (!n.fresh) n.life--;
-                return n.life > 0;
+            // FPS Stats
+            if (STATE.frame % 30 === 0) {
+                const fps = Math.round(1000 / (now - STATE.lastFrameTime) * 30);
+                DOM.fps.innerText = `FPS: ${fps}`;
+                STATE.lastFrameTime = now;
             }
-            return true;
-        });
+            STATE.frame++;
 
-        // GC Wires
-        this.wires = this.wires.filter(w => {
-            const start = this.nodes.find(n => n.id === w.from);
-            const end = this.nodes.find(n => n.id === w.to);
-            return start && end;
-        });
-    }
-
-    triggerConnection(handNode) {
-        // Connect to nearest TOP
-        let target = null;
-        let minD = 300;
-        
-        this.nodes.filter(n => n.type === 'TOP').forEach(n => {
-            const d = Math.hypot(n.x - handNode.x, n.y - handNode.y);
-            if (d < minD) { minD = d; target = n; }
-        });
-
-        if (target) {
-            // Check existence
-            const exists = this.wires.find(w => w.from === handNode.id && w.to === target.id);
-            if (!exists) {
-                this.wires.push({ from: handNode.id, to: target.id, flow: 0 });
-            }
-        }
-    }
-}
-
-/**
- * ============================================================================
- * 5. RENDER ENGINE (VISUALS)
- * ============================================================================
- */
-class Renderer {
-    constructor(canvas, graph) {
-        this.canvas = canvas;
-        this.ctx = canvas.getContext('2d', { alpha: false });
-        this.graph = graph;
-        this.frame = 0;
-    }
-
-    draw(video) {
-        this.frame++;
-        const ctx = this.ctx;
-        const w = this.canvas.width;
-        const h = this.canvas.height;
-
-        // 1. Draw Video
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.drawImage(video, 0, 0, w, h);
-        
-        // Darken
-        ctx.fillStyle = 'rgba(5, 5, 8, 0.85)';
-        ctx.fillRect(0, 0, w, h);
-
-        // 2. Additive Magic
-        ctx.globalCompositeOperation = 'lighter';
-
-        // 3. Wires
-        this.graph.wires.forEach(wire => {
-            const from = this.graph.nodes.find(n => n.id === wire.from);
-            const to = this.graph.nodes.find(n => n.id === wire.to);
-            if (!from || !to) return;
-
-            wire.flow = (wire.flow + 0.04) % 1;
-            
-            ctx.beginPath();
-            ctx.strokeStyle = '#333';
-            ctx.lineWidth = 2;
-            ctx.moveTo(from.x, from.y);
-            const cx = (from.x + to.x) / 2;
-            const cy = (from.y + to.y) / 2;
-            ctx.bezierCurveTo(cx, from.y, cx, to.y, to.x, to.y);
-            ctx.stroke();
-
-            // Data Pulse
-            const t = wire.flow;
-            const px = (1-t)*(1-t)*from.x + 2*(1-t)*t*cx + t*t*to.x;
-            const py = (1-t)*(1-t)*from.y + 2*(1-t)*t*((from.y+to.y)/2) + t*t*to.y; 
-
-            ctx.fillStyle = CONFIG.colorTop;
-            ctx.shadowColor = CONFIG.colorTop;
-            ctx.shadowBlur = 15;
-            ctx.beginPath(); ctx.arc(px, py, 5, 0, Math.PI*2); ctx.fill();
-            ctx.shadowBlur = 0;
-        });
-
-        // 4. Nodes
-        this.graph.nodes.forEach(node => {
-            ctx.save();
-            ctx.translate(node.x, node.y);
-            
-            if (node.type === 'CHOP') this.drawHand(ctx, node);
-            else this.drawObject(ctx, node);
-            
-            ctx.restore();
-        });
-    }
-
-    drawHand(ctx, node) {
-        ctx.rotate(node.rot);
-        
-        const size = 60 + (node.pinchVal * 20);
-        const active = node.pinchVal > 0.1;
-
-        // -- MANDALA --
-        // Ring 1 (Static)
-        ctx.beginPath();
-        ctx.strokeStyle = CONFIG.colorChop;
-        ctx.lineWidth = 1;
-        ctx.setLineDash([2, 5]);
-        ctx.arc(0, 0, size, 0, Math.PI*2);
-        ctx.stroke();
-        ctx.setLineDash([]);
-
-        // Ring 2 (Rotating Arc)
-        ctx.rotate(this.frame * -0.02);
-        ctx.beginPath();
-        ctx.strokeStyle = 'rgba(0, 255, 157, 0.5)';
-        ctx.lineWidth = 2;
-        ctx.arc(0, 0, size * 1.15, 0, Math.PI);
-        ctx.stroke();
-
-        // Ring 3 (Seeded Glyphs - Stable)
-        ctx.rotate(this.frame * 0.03);
-        ctx.fillStyle = CONFIG.colorChop;
-        ctx.font = '10px monospace';
-        const glyphSeed = Math.floor(node.seed);
-        for (let i=0; i<3; i++) {
-            ctx.rotate(Math.PI * 0.66);
-            // Stable pseudorandom character based on seed + i
-            const charCode = 65 + ((glyphSeed + i) % 26); 
-            ctx.fillText(String.fromCharCode(charCode) + '0', size * 1.25, 0);
+            requestAnimationFrame(render);
         }
 
-        // Energy Core
-        if (active) {
-            ctx.beginPath();
-            ctx.fillStyle = CONFIG.colorTop;
-            ctx.globalAlpha = node.pinchVal * 0.8;
-            ctx.arc(0, 0, size * 0.3 * node.pinchVal, 0, Math.PI*2);
-            ctx.fill();
-            ctx.globalAlpha = 1.0;
-        }
+        /**
+         * ------------------------------------------------------------------------
+         * 4. APP LIFECYCLE
+         * ------------------------------------------------------------------------
+         */
+        async function init() {
+            try {
+                setupCanvas();
+                window.addEventListener('resize', () => {
+                    setupCanvas();
+                });
 
-        // Label
-        ctx.setTransform(1, 0, 0, 1, node.x, node.y); 
-        this.drawUIBox(ctx, -40, -size - 35, 80, 25, CONFIG.colorChop, node.label);
-    }
+                // 1. Camera Init
+                DOM.statusText.innerText = "ACCESSING CAMERA...";
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    audio: false,
+                    video: {
+                        facingMode: 'user',
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    }
+                });
+                DOM.video.srcObject = stream;
+                await new Promise(r => DOM.video.onloadedmetadata = r);
+                await DOM.video.play();
 
-    drawObject(ctx, node) {
-        this.drawUIBox(ctx, -60, -30, 120, 60, CONFIG.colorTop, node.label, `CONF: ${(node.conf*100).toFixed(0)}%`);
-    }
-
-    drawUIBox(ctx, x, y, w, h, color, title, subtitle) {
-        // Background
-        ctx.fillStyle = 'rgba(15, 20, 25, 0.9)';
-        ctx.fillRect(x, y, w, h);
-        
-        // Border
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 1;
-        ctx.strokeRect(x, y, w, h);
-
-        // Header Bar
-        ctx.fillStyle = '#1a1a1a';
-        ctx.fillRect(x+1, y+1, w-2, 16);
-        
-        // Text
-        ctx.fillStyle = '#fff';
-        ctx.font = '10px "JetBrains Mono"';
-        ctx.fillText(title, x+6, y+12);
-
-        if (subtitle) {
-            ctx.fillStyle = color;
-            ctx.fillText(subtitle, x+6, y+35);
-        }
-
-        // Tech decorations
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(x-2, y+10, 2, 4);
-        ctx.fillRect(x+w, y+10, 2, 4);
-    }
-}
-
-/**
- * ============================================================================
- * 6. APP BOOTSTRAP
- * ============================================================================
- */
-async function app() {
-    const video = document.getElementById('input_video');
-    const canvas = document.getElementById('render_canvas');
-    
-    // UI Refs
-    const ui = {
-        loader: document.getElementById('loader'),
-        status: document.getElementById('status-text'),
-        sysStatus: document.getElementById('sys-status'),
-        fpsRender: document.getElementById('fps-render'),
-        fpsVision: document.getElementById('fps-yolo'),
-        nodeCount: document.getElementById('node-count')
-    };
-
-    // Responsive Canvas
-    function resize() {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-    }
-    window.addEventListener('resize', resize);
-    resize();
-
-    // Core Systems
-    const vision = new VisionEngine();
-    const graph = new NodeGraph();
-    const renderer = new Renderer(canvas, graph);
-
-    // Stats Vars
-    let lastRenderTime = 0;
-    let frameCount = 0;
-    let lastFpsTime = 0;
-
-    try {
-        // 1. Init Vision
-        ui.status.innerText = "LOADING MODELS...";
-        await vision.init();
-
-        // 2. Init Camera
-        ui.status.innerText = "ACCESSING CAMERA...";
-        const camera = new Camera(video, {
-            onFrame: async () => {
-                await vision.handsModel.send({image: video});
-            },
-            width: 1280, height: 720
-        });
-        await camera.start();
-
-        // 3. Hands Hook
-        vision.handsModel.onResults(results => {
-            const hands = results.multiHandLandmarks ? results.multiHandLandmarks.map((lm, i) => ({
-                landmarks: lm,
-                handedness: results.multiHandedness[i].label
-            })) : [];
-            
-            // Pass hands immediately to graph
-            graph.update(hands, null, canvas.width, canvas.height);
-        });
-
-        // Hide Loader
-        ui.loader.style.opacity = 0;
-        setTimeout(() => ui.loader.style.display = 'none', 600);
-        
-        ui.sysStatus.innerText = "ONLINE";
-        ui.sysStatus.classList.add('ok');
-
-        // --- LOOPS ---
-
-        // A. Render Loop (V-Sync)
-        function renderLoop(time) {
-            renderer.draw(video);
-            
-            // FPS Calc
-            frameCount++;
-            if (time - lastFpsTime >= 1000) {
-                ui.fpsRender.innerText = frameCount + " FPS";
+                // 2. MediaPipe Init
+                DOM.statusText.innerText = "LOADING NEURAL NET...";
+                const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
                 
-                const chops = graph.nodes.filter(n => n.type==='CHOP').length;
-                const tops = graph.nodes.filter(n => n.type==='TOP').length;
-                ui.nodeCount.innerText = `${chops} / ${tops}`;
-                
-                frameCount = 0;
-                lastFpsTime = time;
-            }
-            requestAnimationFrame(renderLoop);
-        }
-        requestAnimationFrame(renderLoop);
+                hands.setOptions({
+                    maxNumHands: 2,
+                    modelComplexity: 0, // Lite for Android
+                    minDetectionConfidence: 0.5,
+                    minTrackingConfidence: 0.5
+                });
 
-        // B. Vision Loop (Throttled via VisionEngine internal timer)
-        async function visionLoop() {
-            const start = performance.now();
-            const results = await vision.runYolo(video);
+                hands.onResults(onResults);
+
+                // 3. Start Loop
+                DOM.loader.style.opacity = '0';
+                setTimeout(() => DOM.loader.style.display = 'none', 500);
+                DOM.sysStatus.innerText = "ONLINE";
+                DOM.sysStatus.style.borderColor = CONFIG.colors.secondary;
+                DOM.sysStatus.style.color = CONFIG.colors.secondary;
+                STATE.isReady = true;
+
+                // 4. Decoupled AI Loop
+                render();
+                processAI(hands);
+
+            } catch (e) {
+                fatalError("INIT FAILED: " + e.message);
+            }
+        }
+
+        function onResults(results) {
+            STATE.pipeBusy = false;
+            petWatchdog(); // Reset watchdog
             
-            if (results) {
-                graph.update(null, results, canvas.width, canvas.height);
-                const dur = (performance.now() - start).toFixed(0);
-                ui.fpsVision.innerText = dur + "ms";
+            const now = performance.now();
+            if (results.multiHandLandmarks) {
+                results.multiHandLandmarks.forEach((lm, i) => {
+                    if (i < 2) STATE.hands[i].update(lm, now);
+                });
             }
-            // Keep loop alive
-            requestAnimationFrame(visionLoop);
         }
-        visionLoop();
 
-    } catch (e) {
-        console.error("Critical Error:", e);
-        ui.status.innerText = "SYSTEM ERROR";
-        ui.status.style.color = "red";
-    }
-}
+        async function processAI(hands) {
+            if (!STATE.isVisible) {
+                setTimeout(() => processAI(hands), 500); // Sleep if hidden
+                return;
+            }
 
-// Launch
-app();
-</script>
+            const now = performance.now();
+            const elapsed = now - STATE.lastPipeTime;
+            const limit = 1000 / CONFIG.limits.maxFPS;
+
+            if (elapsed > limit && !STATE.pipeBusy) {
+                STATE.pipeBusy = true;
+                STATE.lastPipeTime = now;
+                try {
+                    await hands.send({image: DOM.video});
+                } catch(e) {
+                    console.warn("Pipe dropped frame");
+                    STATE.pipeBusy = false;
+                }
+            }
+            
+            requestAnimationFrame(() => processAI(hands));
+        }
+
+        // Visibility Handling (Android Backgrounding)
+        document.addEventListener('visibilitychange', () => {
+            STATE.isVisible = !document.hidden;
+            if (STATE.isVisible) {
+                console.log("Resuming...");
+                DOM.video.play().catch(console.error);
+                STATE.lastPipeTime = performance.now(); // Reset timers
+            } else {
+                console.log("Pausing...");
+                DOM.video.pause();
+            }
+        });
+
+        // Start
+        window.onload = init;
+
+    </script>
 </body>
 </html>
-
-
